@@ -4,7 +4,7 @@ import { Button } from "@/components/ui/button";
 import serialService from "@/services/SerialService";
 import { toast } from "sonner";
 import { Alert, AlertTitle, AlertDescription } from "@/components/ui/alert";
-import { Info, Zap, List, RefreshCcw } from "lucide-react";
+import { Info, Zap, List, RefreshCcw, Shield } from "lucide-react";
 import { Label } from "@/components/ui/label";
 import { Switch } from "@/components/ui/switch";
 import { Tooltip, TooltipContent, TooltipProvider, TooltipTrigger } from "@/components/ui/tooltip";
@@ -27,6 +27,7 @@ const ConnectionControl: React.FC<ConnectionControlProps> = ({
   const [selectedPortId, setSelectedPortId] = useState<string>("");
   const [loadingPorts, setLoadingPorts] = useState(false);
   const isWebSerialSupported = serialService.isSupported;
+  const isSecurityRestricted = serialService.isSecurityRestricted;
   
   useEffect(() => {
     // Listen for Arduino errors
@@ -41,17 +42,17 @@ const ConnectionControl: React.FC<ConnectionControlProps> = ({
     document.addEventListener('arduino-error', handleArduinoError);
     
     // Load available ports on component mount
-    if (isWebSerialSupported) {
+    if (isWebSerialSupported && !isSecurityRestricted) {
       fetchAvailablePorts();
     }
     
     return () => {
       document.removeEventListener('arduino-error', handleArduinoError);
     };
-  }, [isWebSerialSupported]);
+  }, [isWebSerialSupported, isSecurityRestricted]);
   
   const fetchAvailablePorts = async () => {
-    if (!isWebSerialSupported) return;
+    if (!isWebSerialSupported || isSecurityRestricted) return;
     
     setLoadingPorts(true);
     try {
@@ -147,9 +148,26 @@ const ConnectionControl: React.FC<ConnectionControlProps> = ({
         </Alert>
       )}
       
+      {isWebSerialSupported && isSecurityRestricted && (
+        <Alert variant="warning" className="mb-4 border-yellow-400 text-yellow-800 bg-yellow-50">
+          <Shield className="h-4 w-4" />
+          <AlertTitle>Web Serial API restricted</AlertTitle>
+          <AlertDescription>
+            Access to the Web Serial API is restricted by your browser's security policy.
+            This often happens in:
+            <ul className="list-disc list-inside mt-2">
+              <li>iframes (like this preview)</li>
+              <li>non-secure contexts (non-HTTPS sites)</li>
+              <li>when browser permissions are denied</li>
+            </ul>
+            Try opening this app in a new Chrome or Edge window, or enable auto-detect to use mock data.
+          </AlertDescription>
+        </Alert>
+      )}
+      
       <div className="flex flex-col space-y-4 sm:space-y-0">
         {/* Port selection section */}
-        {isWebSerialSupported && !autoDetect && (
+        {isWebSerialSupported && !isSecurityRestricted && !autoDetect && (
           <div className="flex flex-col space-y-2 sm:flex-row sm:items-center sm:space-y-0 sm:space-x-4 mb-4">
             <div className="flex-1">
               <Label htmlFor="port-select" className="mb-2 block">Serial Port</Label>
@@ -197,7 +215,7 @@ const ConnectionControl: React.FC<ConnectionControlProps> = ({
                 onClick={handleConnect}
                 variant="default"
                 className="bg-hydro-blue hover:bg-hydro-blue/90"
-                disabled={connecting || (!autoDetect && !selectedPortId && availablePorts.length > 0)}
+                disabled={connecting || (!autoDetect && !selectedPortId && availablePorts.length > 0 && !isSecurityRestricted)}
               >
                 {connecting ? 'Connecting...' : 'Connect to Arduino'}
               </Button>

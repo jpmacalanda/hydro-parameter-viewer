@@ -1,4 +1,3 @@
-
 // Serial service to connect with Arduino via Web Serial API
 import { 
   SerialData, 
@@ -21,6 +20,7 @@ class SerialService {
   private isRaspberryPi: boolean = false;
   private autoDetectHardware: boolean = true; // Default to auto-detect
   private useMockData: boolean = false;
+  private securityRestricted: boolean = false;
 
   constructor() {
     // Check if we're running on the Raspberry Pi
@@ -33,11 +33,19 @@ class SerialService {
     if (savedPreference !== null) {
       this.autoDetectHardware = savedPreference === 'true';
     }
+    
+    // Check if Web Serial API is restricted by security policy
+    this.checkSecurityRestrictions();
   }
 
   // Check if Web Serial API is supported
   get isSupported(): boolean {
     return 'serial' in navigator;
+  }
+  
+  // Check if Web Serial API is restricted by security policy
+  get isSecurityRestricted(): boolean {
+    return this.securityRestricted;
   }
   
   // Get/Set auto-detect hardware setting
@@ -55,9 +63,32 @@ class SerialService {
     return this.useMockData;
   }
 
+  // Check if Web Serial API is restricted by security policy
+  private async checkSecurityRestrictions(): Promise<void> {
+    if (this.isSupported) {
+      try {
+        // Attempt to call getPorts() to check if it's allowed
+        await navigator.serial.getPorts();
+        this.securityRestricted = false;
+      } catch (error) {
+        // If we get a SecurityError, the API is restricted
+        if (error instanceof Error && error.name === 'SecurityError') {
+          console.warn('Web Serial API is restricted by security policy');
+          this.securityRestricted = true;
+        }
+      }
+    }
+  }
+
   // Get available ports (if supported)
   async getAvailablePorts(): Promise<SerialPortInfo[]> {
-    if (!this.isSupported || !navigator.serial?.getPorts) {
+    if (!this.isSupported) {
+      return [];
+    }
+    
+    // If Web Serial API is restricted, return empty array
+    if (this.securityRestricted) {
+      console.warn('Cannot list ports: Web Serial API is restricted by security policy');
       return [];
     }
     
@@ -77,6 +108,12 @@ class SerialService {
       });
     } catch (error) {
       console.error("Error getting available ports:", error);
+      
+      // If error is SecurityError, update the flag
+      if (error instanceof Error && error.name === 'SecurityError') {
+        this.securityRestricted = true;
+      }
+      
       return [];
     }
   }
@@ -86,6 +123,33 @@ class SerialService {
     try {
       // Reset mock data flag at the start of each connection attempt
       this.useMockData = false;
+      
+      // If Web Serial API is restricted by security policy, handle accordingly
+      if (this.isSupported && this.securityRestricted) {
+        console.warn("Web Serial API is restricted by security policy");
+        
+        if (this.autoDetectHardware) {
+          // If auto-detect is enabled, try WebSocket or fall back to mock data
+          try {
+            webSocketService.connect();
+            webSocketService.onData((data) => {
+              this.callbacks.forEach(callback => callback(data));
+            });
+            this.isConnected = true;
+            return true;
+          } catch (wsError) {
+            console.log("WebSocket connection failed, using mock data...", wsError);
+            this.useMockData = true;
+            this.setupMockData();
+            return true;
+          }
+        } else {
+          // If auto-detect is disabled, respect the user's preference
+          throw new Error("Web Serial API is restricted by security policy");
+        }
+      }
+      
+      // Rest of the connection logic
       
       if (this.isRaspberryPi) {
         // If we're on the Raspberry Pi, try to use WebSocket or direct Serial connection
