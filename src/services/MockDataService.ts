@@ -1,38 +1,69 @@
-
 import { SerialData, DataCallback, RawMessageCallback } from './types/serial.types';
 
 class MockDataService {
   private mockDataInterval: ReturnType<typeof setInterval> | null = null;
   private callbacks: DataCallback[] = [];
   private rawCallbacks: RawMessageCallback[] = [];
+  
+  private baseValues = {
+    ph: 6.2,
+    temperature: 23.5,
+    tds: 750
+  };
+  
+  private trends = {
+    ph: 1,
+    temperature: 1,
+    tds: 1
+  };
+  
+  private trendCounter = 0;
 
-  // Register a callback to receive data
   onData(callback: DataCallback): void {
     this.callbacks.push(callback);
   }
   
-  // Register a callback to receive raw messages
   onRawMessage(callback: RawMessageCallback): void {
     this.rawCallbacks.push(callback);
   }
 
-  // Start simulating data emission for demo purposes or when real connection fails
   startMockDataEmission(): void {
-    console.log("Starting mock data emission");
+    console.log("Starting mock data emission with realistic values");
     if (this.mockDataInterval) {
       this.stopMockDataEmission();
     }
     
     this.mockDataInterval = setInterval(() => {
-      const ph = Number((Math.random() * 2 + 5).toFixed(1)); // pH between 5.0 and 7.0
-      const temp = Number((Math.random() * 8 + 20).toFixed(1)); // Temp between 20 and 28°C
-      const waterLevel = ['low', 'medium', 'high'][Math.floor(Math.random() * 3)] as 'low' | 'medium' | 'high';
-      const tds = Math.floor(Math.random() * 500 + 500); // TDS between 500 and 1000 PPM
+      this.trendCounter++;
+      if (this.trendCounter % 5 === 0) {
+        this.changeTrends();
+      }
       
-      // Create raw message format
+      const phVariation = (Math.random() * 0.1) * this.trends.ph;
+      const tempVariation = (Math.random() * 0.2) * this.trends.temperature;
+      const tdsVariation = (Math.random() * 20) * this.trends.tds;
+      
+      this.baseValues.ph += phVariation;
+      this.baseValues.temperature += tempVariation;
+      this.baseValues.tds += tdsVariation;
+      
+      this.baseValues.ph = this.constrainValue(this.baseValues.ph, 5.5, 7.2);
+      this.baseValues.temperature = this.constrainValue(this.baseValues.temperature, 19, 27);
+      this.baseValues.tds = this.constrainValue(this.baseValues.tds, 550, 950);
+      
+      const ph = Number(this.baseValues.ph.toFixed(1));
+      const temp = Number(this.baseValues.temperature.toFixed(1));
+      const tds = Math.round(this.baseValues.tds);
+      
+      const waterLevelOptions = ['low', 'medium', 'high'] as const;
+      const waterLevelIndex = Math.min(
+        2, 
+        Math.floor((27 - this.baseValues.temperature) / 3)
+      );
+      const waterLevel = waterLevelOptions[waterLevelIndex];
+      
       const rawMessage = `pH:${ph},temp:${temp},water:${waterLevel},tds:${tds}`;
       
-      // Send raw message to raw callbacks
       this.rawCallbacks.forEach(callback => callback(rawMessage));
       
       const mockData: SerialData = {
@@ -43,10 +74,25 @@ class MockDataService {
       };
 
       this.callbacks.forEach(callback => callback(mockData));
-    }, 5000); // Update every 5 seconds
+    }, 5000);
+  }
+  
+  private constrainValue(value: number, min: number, max: number): number {
+    return Math.max(min, Math.min(max, value));
+  }
+  
+  private changeTrends(): void {
+    if (Math.random() < 0.3) {
+      this.trends.ph *= -1;
+    }
+    if (Math.random() < 0.3) {
+      this.trends.temperature *= -1;
+    }
+    if (Math.random() < 0.3) {
+      this.trends.tds *= -1;
+    }
   }
 
-  // Stop mock data emission
   stopMockDataEmission(): void {
     if (this.mockDataInterval) {
       clearInterval(this.mockDataInterval);
@@ -54,13 +100,11 @@ class MockDataService {
     }
   }
 
-  // Clear all registered callbacks
   clearCallbacks(): void {
     this.callbacks = [];
     this.rawCallbacks = [];
   }
 }
 
-// Create a singleton instance
 const mockDataService = new MockDataService();
 export default mockDataService;
