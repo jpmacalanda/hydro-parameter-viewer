@@ -149,7 +149,7 @@ const ConnectionControl: React.FC<ConnectionControlProps> = ({
       )}
       
       {isWebSerialSupported && isSecurityRestricted && (
-        <Alert variant="warning" className="mb-4 border-yellow-400 text-yellow-800 bg-yellow-50">
+        <Alert variant="default" className="mb-4 border-yellow-400 text-yellow-800 bg-yellow-50">
           <Shield className="h-4 w-4" />
           <AlertTitle>Web Serial API restricted</AlertTitle>
           <AlertDescription>
