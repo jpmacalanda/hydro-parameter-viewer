@@ -2,7 +2,7 @@
 import React from 'react';
 import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
 import { Progress } from "@/components/ui/progress";
-import { Water } from "lucide-react";
+import { Droplet } from "lucide-react";
 
 interface TDSDisplayProps {
   value: number;
@@ -49,7 +49,7 @@ const TDSDisplay: React.FC<TDSDisplayProps> = ({ value }) => {
       <CardHeader className="pb-2">
         <CardTitle className="text-lg flex items-center justify-between">
           <span>TDS Level (Nutrients)</span>
-          <Water 
+          <Droplet 
             size={24} 
             className={`text-${getColor()} animate-pulse-slow`} 
           />
