@@ -1,4 +1,3 @@
-
 // Serial service to connect with Arduino via Web Serial API
 
 interface SerialData {
@@ -26,6 +25,8 @@ declare global {
   }
 }
 
+import webSocketService from './WebSocketService';
+
 class SerialService {
   private isConnected: boolean = false;
   private port: SerialPortInterface | null = null;
@@ -33,6 +34,14 @@ class SerialService {
   private callbacks: DataCallback[] = [];
   private readInterval: ReturnType<typeof setInterval> | null = null;
   private mockDataInterval: ReturnType<typeof setInterval> | null = null;
+  private isRaspberryPi: boolean = false;
+
+  constructor() {
+    // Check if we're running on the Raspberry Pi
+    this.isRaspberryPi = window.location.hostname === 'raspberrypi.local' || 
+                         window.location.hostname.startsWith('192.168.') ||
+                         window.location.hostname === 'localhost';
+  }
 
   // Check if Web Serial API is supported
   get isSupported(): boolean {
@@ -42,34 +51,38 @@ class SerialService {
   // Connect to the Arduino via Serial port
   async connect(): Promise<boolean> {
     try {
-      // Check if Web Serial API is supported
-      if (!this.isSupported) {
-        console.warn("Web Serial API is not supported in this browser. Falling back to mock data.");
-        this.startMockDataEmission();
-        this.isConnected = true;
-        return true;
-      }
+      if (this.isRaspberryPi) {
+        // If we're on the Raspberry Pi, use direct Serial connection
+        if (!this.isSupported) {
+          console.warn("Web Serial API is not supported. Using mock data.");
+          this.startMockDataEmission();
+          this.isConnected = true;
+          return true;
+        }
 
-      // Request a port
-      if (navigator.serial) {
-        this.port = await navigator.serial.requestPort();
-        
-        // Open the port with appropriate Arduino settings (9600 baud rate is common for Arduino)
-        await this.port.open({ baudRate: 9600 });
-        
-        // Start reading data
-        this.isConnected = true;
-        this.startReading();
-        return true;
+        if (navigator.serial) {
+          this.port = await navigator.serial.requestPort();
+          await this.port.open({ baudRate: 9600 });
+          this.isConnected = true;
+          this.startReading();
+          return true;
+        }
       } else {
-        throw new Error("Web Serial API is not available");
+        // If we're on another device, connect via WebSocket
+        webSocketService.connect();
+        webSocketService.onData((data) => {
+          this.callbacks.forEach(callback => callback(data));
+        });
+        this.isConnected = true;
+        return true;
       }
+      
+      throw new Error("Connection not possible");
     } catch (error) {
-      console.error("Failed to connect to Arduino:", error);
-      // Fall back to mock data if connection fails
+      console.error("Failed to connect:", error);
       this.startMockDataEmission();
       this.isConnected = true;
-      return true; // We return true even though real connection failed because we fall back to mock
+      return true;
     }
   }
 
