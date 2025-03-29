@@ -4,6 +4,8 @@ import TemperatureDisplay from './TemperatureDisplay';
 import WaterLevelDisplay from './WaterLevelDisplay';
 import TDSDisplay from './TDSDisplay';
 import ThresholdSettings from './ThresholdSettings';
+import CalibrationSettings from './CalibrationSettings';
+import StatisticsView from './StatisticsView';
 import ConnectionControl from './ConnectionControl';
 import serialService from '@/services/SerialService';
 import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
@@ -11,6 +13,7 @@ import { Switch } from "@/components/ui/switch";
 import { Label } from "@/components/ui/label";
 import { Tabs, TabsContent, TabsList, TabsTrigger } from "@/components/ui/tabs";
 import { toast } from "sonner";
+import { Activity, Gauge, Settings, Flask } from "lucide-react";
 
 // Default initial values
 const initialParams = {
@@ -30,6 +33,12 @@ const initialThresholds = {
   tdsMax: 1000
 };
 
+// Default calibration values
+const initialCalibration = {
+  phCalibrationConstant: 1.0,
+  tdsCalibrationFactor: 1.0
+};
+
 // Maximum number of data points to keep in history
 const MAX_HISTORY_LENGTH = 20;
 
@@ -40,6 +49,7 @@ const Dashboard: React.FC = () => {
   const [showGraphs, setShowGraphs] = useState(true);
   const [activeTab, setActiveTab] = useState("monitor");
   const [thresholds, setThresholds] = useState(initialThresholds);
+  const [calibration, setCalibration] = useState(initialCalibration);
   
   // Historical data for graphs
   const [phHistory, setPhHistory] = useState<Array<{time: string; value: number}>>([]);
@@ -49,7 +59,14 @@ const Dashboard: React.FC = () => {
   useEffect(() => {
     // Set up the callback to receive data
     serialService.onData((data) => {
-      setParams(data);
+      // Apply calibration to the incoming data
+      const calibratedData = {
+        ...data,
+        ph: parseFloat((data.ph * calibration.phCalibrationConstant).toFixed(1)),
+        tds: Math.round(data.tds * calibration.tdsCalibrationFactor)
+      };
+      
+      setParams(calibratedData);
       const now = new Date();
       setLastUpdate(now);
       
@@ -58,19 +75,19 @@ const Dashboard: React.FC = () => {
       
       // Update pH history
       setPhHistory(prev => {
-        const newHistory = [...prev, { time: timeStr, value: data.ph }];
+        const newHistory = [...prev, { time: timeStr, value: calibratedData.ph }];
         return newHistory.slice(-MAX_HISTORY_LENGTH); // Keep only the latest entries
       });
       
       // Update temperature history
       setTempHistory(prev => {
-        const newHistory = [...prev, { time: timeStr, value: data.temperature }];
+        const newHistory = [...prev, { time: timeStr, value: calibratedData.temperature }];
         return newHistory.slice(-MAX_HISTORY_LENGTH);
       });
       
       // Update TDS history
       setTdsHistory(prev => {
-        const newHistory = [...prev, { time: timeStr, value: data.tds }];
+        const newHistory = [...prev, { time: timeStr, value: calibratedData.tds }];
         return newHistory.slice(-MAX_HISTORY_LENGTH);
       });
     });
@@ -79,7 +96,7 @@ const Dashboard: React.FC = () => {
     return () => {
       serialService.disconnect();
     };
-  }, []);
+  }, [calibration]); // Re-run when calibration changes
   
   const handleConnect = () => {
     setConnected(true);
@@ -88,23 +105,41 @@ const Dashboard: React.FC = () => {
   const handleSaveThresholds = (newThresholds: typeof thresholds) => {
     setThresholds(newThresholds);
     
-    // In a real application, you might want to save these to localStorage or a backend
+    // Save to localStorage
     try {
       localStorage.setItem('hydroponics-thresholds', JSON.stringify(newThresholds));
+      toast.success("Threshold settings saved successfully");
     } catch (error) {
       console.error('Failed to save thresholds to localStorage', error);
+      toast.error("Failed to save threshold settings");
     }
   };
   
-  // Load thresholds from localStorage on component mount
+  const handleSaveCalibration = (newCalibration: typeof calibration) => {
+    setCalibration(newCalibration);
+    
+    // Save to localStorage
+    try {
+      localStorage.setItem('hydroponics-calibration', JSON.stringify(newCalibration));
+    } catch (error) {
+      console.error('Failed to save calibration to localStorage', error);
+    }
+  };
+  
+  // Load settings from localStorage on component mount
   useEffect(() => {
     try {
       const savedThresholds = localStorage.getItem('hydroponics-thresholds');
       if (savedThresholds) {
         setThresholds(JSON.parse(savedThresholds));
       }
+      
+      const savedCalibration = localStorage.getItem('hydroponics-calibration');
+      if (savedCalibration) {
+        setCalibration(JSON.parse(savedCalibration));
+      }
     } catch (error) {
-      console.error('Failed to load thresholds from localStorage', error);
+      console.error('Failed to load settings from localStorage', error);
     }
   }, []);
   
@@ -121,9 +156,23 @@ const Dashboard: React.FC = () => {
       </header>
       
       <Tabs value={activeTab} onValueChange={setActiveTab} className="w-full">
-        <TabsList className="grid w-full grid-cols-2 mb-6">
-          <TabsTrigger value="monitor">Monitoring</TabsTrigger>
-          <TabsTrigger value="settings">Threshold Settings</TabsTrigger>
+        <TabsList className="grid w-full grid-cols-4 mb-6">
+          <TabsTrigger value="monitor" className="flex items-center gap-2">
+            <Gauge size={16} />
+            <span>Monitoring</span>
+          </TabsTrigger>
+          <TabsTrigger value="settings" className="flex items-center gap-2">
+            <Settings size={16} />
+            <span>Thresholds</span>
+          </TabsTrigger>
+          <TabsTrigger value="calibration" className="flex items-center gap-2">
+            <Flask size={16} />
+            <span>Calibration</span>
+          </TabsTrigger>
+          <TabsTrigger value="statistics" className="flex items-center gap-2">
+            <Activity size={16} />
+            <span>Statistics</span>
+          </TabsTrigger>
         </TabsList>
         
         <TabsContent value="monitor" className="space-y-4">
@@ -172,6 +221,17 @@ const Dashboard: React.FC = () => {
             tdsMax={thresholds.tdsMax}
             onSave={handleSaveThresholds}
           />
+        </TabsContent>
+        
+        <TabsContent value="calibration">
+          <CalibrationSettings 
+            initialValues={calibration}
+            onSaveCalibration={handleSaveCalibration}
+          />
+        </TabsContent>
+        
+        <TabsContent value="statistics">
+          <StatisticsView />
         </TabsContent>
       </Tabs>
       

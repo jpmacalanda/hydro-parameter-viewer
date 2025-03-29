@@ -39,9 +39,17 @@ const PHDisplay: React.FC<PHDisplayProps> = ({
   // Set color based on status
   const getColor = () => {
     switch (status) {
-      case "low": return "hydro-ph-low";
-      case "high": return "hydro-ph-high";
-      case "normal": return "hydro-ph-normal";
+      case "low": return "text-red-500";
+      case "high": return "text-yellow-500";
+      case "normal": return "text-green-500";
+    }
+  };
+  
+  const getBgColor = () => {
+    switch (status) {
+      case "low": return "bg-red-500";
+      case "high": return "bg-yellow-500";
+      case "normal": return "bg-green-500";
     }
   };
   
@@ -60,14 +68,14 @@ const PHDisplay: React.FC<PHDisplayProps> = ({
           <span>pH Level</span>
           <Droplet 
             size={24} 
-            className={`text-${getColor()} animate-pulse-slow`} 
+            className={`${getColor()} animate-pulse-slow`} 
           />
         </CardTitle>
       </CardHeader>
       <CardContent>
         <div className="flex justify-between items-center mb-2">
           <span className="text-3xl font-bold">{value.toFixed(1)}</span>
-          <span className={`px-2 py-1 rounded-full text-xs font-medium text-white bg-${getColor()}`}>
+          <span className={`px-2 py-1 rounded-full text-xs font-medium text-white ${getBgColor()}`}>
             {statusText()}
           </span>
         </div>
