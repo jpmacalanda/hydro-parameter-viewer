@@ -1,8 +1,160 @@
-# Welcome to your Lovable project
+
+# Hydroponics Monitoring System
 
 ## Project info
 
 **URL**: https://lovable.dev/projects/9d096dec-19bd-43a9-80ce-09ae73807cd9
+
+## Installation
+
+### Setting up the Raspberry Pi
+
+1. **Install required Python packages on your Raspberry Pi**:
+   ```bash
+   sudo apt update
+   sudo apt install python3-pip python3-serial
+   pip3 install websockets asyncio
+   ```
+
+2. **Create a WebSocket server on your Raspberry Pi**:
+   Create a file named `hydroponics_server.py` with the following content:
+   ```python
+   import asyncio
+   import serial
+   import websockets
+   import json
+   
+   # Configure these settings:
+   SERIAL_PORT = "/dev/ttyUSB0"  # Change to your Arduino's serial port
+   BAUD_RATE = 9600
+   WS_PORT = 8081
+   
+   # Initialize serial connection
+   try:
+       ser = serial.Serial(SERIAL_PORT, BAUD_RATE, timeout=1)
+       print(f"Serial connection established on {SERIAL_PORT}")
+   except Exception as e:
+       print(f"Error opening serial port: {e}")
+       ser = None
+   
+   connected_clients = set()
+   
+   async def handle_client(websocket, path):
+       print(f"Client connected: {websocket.remote_address}")
+       connected_clients.add(websocket)
+       try:
+           await websocket.wait_closed()
+       finally:
+           connected_clients.remove(websocket)
+           print(f"Client disconnected: {websocket.remote_address}")
+   
+   async def read_serial():
+       while True:
+           if ser and ser.in_waiting > 0:
+               try:
+                   line = ser.readline().decode('utf-8').strip()
+                   if line:
+                       # Parse the Arduino data
+                       data = {}
+                       parts = line.split(',')
+                       for part in parts:
+                           key_value = part.split(':')
+                           if len(key_value) == 2:
+                               key, value = key_value
+                               if key.lower() == 'ph':
+                                   data['ph'] = float(value)
+                               elif key.lower() == 'temp' or key.lower() == 'temperature':
+                                   data['temperature'] = float(value)
+                               elif key.lower() == 'water' or key.lower() == 'waterlevel':
+                                   data['waterLevel'] = value
+                               elif key.lower() == 'tds':
+                                   data['tds'] = int(value)
+                       
+                       if data and connected_clients:
+                           # Send data to all connected clients
+                           message = json.dumps(data)
+                           await asyncio.gather(
+                               *(client.send(message) for client in connected_clients)
+                           )
+                           print(f"Sent to {len(connected_clients)} clients: {message}")
+               except Exception as e:
+                   print(f"Error reading/processing serial data: {e}")
+           await asyncio.sleep(1)
+   
+   async def main():
+       server = await websockets.serve(handle_client, "0.0.0.0", WS_PORT)
+       print(f"WebSocket server running on port {WS_PORT}")
+       serial_task = asyncio.create_task(read_serial())
+       await server.wait_closed()
+   
+   if __name__ == "__main__":
+       asyncio.run(main())
+   ```
+
+3. **Make the script executable and run it automatically on startup**:
+   ```bash
+   chmod +x hydroponics_server.py
+   ```
+
+   To run the script on startup, add it to your crontab:
+   ```bash
+   crontab -e
+   ```
+   
+   Add this line to the file:
+   ```
+   @reboot python3 /path/to/hydroponics_server.py
+   ```
+
+### Setting up the Arduino
+
+1. **Upload the following code to your Arduino**:
+   ```cpp
+   // Hydroponics Monitoring System
+   // Make sure to connect your sensors correctly
+   
+   void setup() {
+     Serial.begin(9600);
+     // Initialize your sensors here
+   }
+   
+   void loop() {
+     // Replace these with actual sensor readings
+     float ph = 6.8;           // pH sensor reading
+     float temp = 23.5;        // Temperature sensor reading
+     String waterLevel = "medium";  // Water level sensor reading
+     int tds = 650;            // TDS sensor reading
+     
+     // Send data in the format expected by the monitoring system
+     Serial.print("pH:");
+     Serial.print(ph);
+     Serial.print(",temp:");
+     Serial.print(temp);
+     Serial.print(",water:");
+     Serial.print(waterLevel);
+     Serial.print(",tds:");
+     Serial.print(tds);
+     Serial.println();
+     
+     delay(5000); // Send data every 5 seconds
+   }
+   ```
+
+2. **Connect the Arduino to your Raspberry Pi** via USB.
+
+### Running the Web Application
+
+1. **Clone and set up the web application**:
+   ```bash
+   git clone <YOUR_GIT_URL>
+   cd <YOUR_PROJECT_NAME>
+   npm i
+   npm run dev
+   ```
+
+2. **Access the application**:
+   - From the Raspberry Pi: http://localhost:8080
+   - From other devices: http://[RASPBERRY_PI_IP]:8080 (replace [RASPBERRY_PI_IP] with your Raspberry Pi's IP address)
 
 ## How can I edit this code?
 
@@ -52,7 +204,7 @@ npm run dev
 
 ## What technologies are used for this project?
 
-This project is built with .
+This project is built with:
 
 - Vite
 - TypeScript
