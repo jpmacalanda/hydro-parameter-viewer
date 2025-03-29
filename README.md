@@ -156,6 +156,114 @@
    - From the Raspberry Pi: http://localhost:8080
    - From other devices: http://[RASPBERRY_PI_IP]:8080 (replace [RASPBERRY_PI_IP] with your Raspberry Pi's IP address)
 
+## Docker Setup
+
+### Docker for the Web Application
+
+1. **Create a Dockerfile**:
+   Create a file named `Dockerfile` in the root of your project:
+
+   ```dockerfile
+   FROM node:18-alpine AS builder
+   WORKDIR /app
+   COPY package*.json ./
+   RUN npm install
+   COPY . .
+   RUN npm run build
+
+   FROM nginx:alpine
+   COPY --from=builder /app/dist /usr/share/nginx/html
+   COPY docker/nginx.conf /etc/nginx/conf.d/default.conf
+   EXPOSE 80
+   CMD ["nginx", "-g", "daemon off;"]
+   ```
+
+2. **Create an Nginx configuration file**:
+   Create a directory named `docker` and inside it create a file named `nginx.conf`:
+
+   ```
+   server {
+       listen 80;
+       server_name _;
+       
+       location / {
+           root /usr/share/nginx/html;
+           index index.html;
+           try_files $uri $uri/ /index.html;
+       }
+   }
+   ```
+
+3. **Build and run the Docker container**:
+   ```bash
+   docker build -t hydroponics-monitor .
+   docker run -d -p 80:80 --name hydroponics-app hydroponics-monitor
+   ```
+
+4. **Access the application**:
+   - From the host machine: http://localhost
+   - From other devices: http://[HOST_IP] (replace [HOST_IP] with your host machine's IP address)
+
+### Docker for the Raspberry Pi WebSocket Server
+
+1. **Create a Dockerfile for the WebSocket server**:
+   Create a file named `Dockerfile.server` in the root of your project:
+
+   ```dockerfile
+   FROM python:3.9-slim
+   WORKDIR /app
+   
+   # Install required packages
+   RUN apt-get update && apt-get install -y \
+       python3-serial \
+       && rm -rf /var/lib/apt/lists/*
+   
+   RUN pip install websockets asyncio pyserial
+   
+   # Copy server script
+   COPY hydroponics_server.py .
+   
+   # Run the server
+   CMD ["python3", "hydroponics_server.py"]
+   ```
+
+2. **Build and run the Docker container for the WebSocket server**:
+   ```bash
+   docker build -f Dockerfile.server -t hydroponics-server .
+   docker run -d --device=/dev/ttyUSB0 -p 8081:8081 --name hydroponics-ws hydroponics-server
+   ```
+
+   Note: Replace `/dev/ttyUSB0` with the actual path to your Arduino device.
+
+3. **Docker Compose (Optional)**:
+   For easier management, create a `docker-compose.yml` file:
+
+   ```yaml
+   version: '3'
+
+   services:
+     webapp:
+       build: .
+       ports:
+         - "80:80"
+       depends_on:
+         - websocket
+
+     websocket:
+       build:
+         context: .
+         dockerfile: Dockerfile.server
+       ports:
+         - "8081:8081"
+       devices:
+         - "/dev/ttyUSB0:/dev/ttyUSB0"
+   ```
+
+   Run with:
+   ```bash
+   docker-compose up -d
+   ```
+
 ## How can I edit this code?
 
 There are several ways of editing your application.

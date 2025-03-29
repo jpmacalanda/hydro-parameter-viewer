@@ -1,0 +1,16 @@
+
+FROM python:3.9-slim
+WORKDIR /app
+
+# Install required packages
+RUN apt-get update && apt-get install -y \
+    python3-serial \
+    && rm -rf /var/lib/apt/lists/*
+
+RUN pip install websockets asyncio pyserial
+
+# Copy server script
+COPY hydroponics_server.py .
+
+# Run the server
+CMD ["python3", "hydroponics_server.py"]
