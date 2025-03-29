@@ -2,7 +2,7 @@
 import React, { useState, useEffect } from 'react';
 import { Tabs, TabsContent, TabsList, TabsTrigger } from "@/components/ui/tabs";
 import { toast } from "sonner";
-import { Activity, Gauge, Settings } from "lucide-react";
+import { Activity, Gauge, Settings, Terminal } from "lucide-react";
 import serialService from '@/services/SerialService';
 import ConnectionControl from './ConnectionControl';
 import ThresholdSettings from './ThresholdSettings';
@@ -10,6 +10,7 @@ import CalibrationSettings from './CalibrationSettings';
 import StatisticsView from './StatisticsView';
 import MonitoringPanel from './dashboard/MonitoringPanel';
 import SystemInfoPanel from './dashboard/SystemInfoPanel';
+import SerialMonitor from './SerialMonitor';
 import LocalStorageService from './dashboard/LocalStorageService';
 import { HydroParams, Thresholds, Calibration } from './dashboard/types';
 
@@ -128,7 +129,7 @@ const Dashboard: React.FC = () => {
       </header>
       
       <Tabs value={activeTab} onValueChange={setActiveTab} className="w-full">
-        <TabsList className="grid w-full grid-cols-4 mb-6">
+        <TabsList className="grid w-full grid-cols-5 mb-6">
           <TabsTrigger value="monitor" className="flex items-center gap-2">
             <Gauge size={16} />
             <span>Monitoring</span>
@@ -144,6 +145,10 @@ const Dashboard: React.FC = () => {
           <TabsTrigger value="statistics" className="flex items-center gap-2">
             <Activity size={16} />
             <span>Statistics</span>
+          </TabsTrigger>
+          <TabsTrigger value="serialmonitor" className="flex items-center gap-2">
+            <Terminal size={16} />
+            <span>Serial Monitor</span>
           </TabsTrigger>
         </TabsList>
         
@@ -180,6 +185,10 @@ const Dashboard: React.FC = () => {
         
         <TabsContent value="statistics">
           <StatisticsView />
+        </TabsContent>
+        
+        <TabsContent value="serialmonitor">
+          <SerialMonitor />
         </TabsContent>
       </Tabs>
       

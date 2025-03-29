@@ -1,9 +1,11 @@
-import { SerialData, DataCallback, SerialPortInterface } from './types/serial.types';
+
+import { SerialData, DataCallback, SerialPortInterface, RawMessageCallback } from './types/serial.types';
 
 class SerialReader {
   private reader: ReadableStreamDefaultReader | null = null;
   private readInterval: ReturnType<typeof setInterval> | null = null;
   private callbacks: DataCallback[] = [];
+  private rawCallbacks: RawMessageCallback[] = [];
   private port: SerialPortInterface | null = null;
 
   constructor() {}
@@ -16,6 +18,11 @@ class SerialReader {
   // Register a callback to receive data
   onData(callback: DataCallback): void {
     this.callbacks.push(callback);
+  }
+
+  // Register a callback to receive raw messages
+  onRawMessage(callback: RawMessageCallback): void {
+    this.rawCallbacks.push(callback);
   }
 
   // Start reading data from the serial port
@@ -56,7 +63,13 @@ class SerialReader {
           if (lines.length > 1) {
             // Process all complete lines
             for (let i = 0; i < lines.length - 1; i++) {
-              this.processMessage(lines[i]);
+              const rawMessage = lines[i].trim();
+              
+              // Send raw message to raw callbacks
+              this.rawCallbacks.forEach(callback => callback(rawMessage));
+              
+              // Process the message for parsed data callbacks
+              this.processMessage(rawMessage);
             }
             
             // Keep any incomplete data in the buffer
@@ -142,6 +155,7 @@ class SerialReader {
   // Clear all callbacks
   clearCallbacks(): void {
     this.callbacks = [];
+    this.rawCallbacks = [];
   }
 }
 

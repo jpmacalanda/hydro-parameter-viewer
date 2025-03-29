@@ -1,6 +1,6 @@
 
 // Serial service to connect with Arduino via Web Serial API
-import { SerialData, DataCallback, SerialPortInterface } from './types/serial.types';
+import { SerialData, DataCallback, SerialPortInterface, RawMessageCallback } from './types/serial.types';
 import webSocketService from './WebSocketService';
 import mockDataService from './MockDataService';
 import serialReader from './SerialReader';
@@ -9,6 +9,7 @@ class SerialService {
   private isConnected: boolean = false;
   private port: SerialPortInterface | null = null;
   private callbacks: DataCallback[] = [];
+  private rawCallbacks: RawMessageCallback[] = [];
   private isRaspberryPi: boolean = false;
 
   constructor() {
@@ -47,6 +48,11 @@ class SerialService {
             this.callbacks.forEach(callback => callback(data));
           });
           
+          // Forward raw message callbacks to the serial reader
+          serialReader.onRawMessage((message) => {
+            this.rawCallbacks.forEach(callback => callback(message));
+          });
+          
           // Start reading from the serial port
           await serialReader.startReading();
           return true;
@@ -74,6 +80,9 @@ class SerialService {
     mockDataService.onData((data) => {
       this.callbacks.forEach(callback => callback(data));
     });
+    mockDataService.onRawMessage((message) => {
+      this.rawCallbacks.forEach(callback => callback(message));
+    });
     mockDataService.startMockDataEmission();
     this.isConnected = true;
   }
@@ -100,6 +109,7 @@ class SerialService {
     
     // Clear callbacks
     this.callbacks = [];
+    this.rawCallbacks = [];
     mockDataService.clearCallbacks();
     serialReader.clearCallbacks();
   }
@@ -107,6 +117,11 @@ class SerialService {
   // Register a callback to receive data
   onData(callback: DataCallback): void {
     this.callbacks.push(callback);
+  }
+  
+  // Register a callback to receive raw messages
+  onRawMessage(callback: RawMessageCallback): void {
+    this.rawCallbacks.push(callback);
   }
 }
 

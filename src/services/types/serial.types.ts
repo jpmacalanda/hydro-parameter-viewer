@@ -9,6 +9,7 @@ export interface SerialData {
 }
 
 export type DataCallback = (data: SerialData) => void;
+export type RawMessageCallback = (message: string) => void;
 
 // Define a type for SerialPort if it doesn't exist
 export interface SerialPortInterface {
