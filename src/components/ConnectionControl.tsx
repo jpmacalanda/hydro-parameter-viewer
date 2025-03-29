@@ -7,6 +7,7 @@ import { Alert, AlertTitle, AlertDescription } from "@/components/ui/alert";
 import { Info, Zap } from "lucide-react";
 import { Label } from "@/components/ui/label";
 import { Switch } from "@/components/ui/switch";
+import { Tooltip, TooltipContent, TooltipProvider, TooltipTrigger } from "@/components/ui/tooltip";
 
 interface ConnectionControlProps {
   onConnect: () => void;
@@ -136,10 +137,16 @@ const ConnectionControl: React.FC<ConnectionControlProps> = ({
             onCheckedChange={handleAutoDetectChange}
           />
           <Label htmlFor="auto-detect">Auto-detect hardware</Label>
-          <Info 
-            className="h-4 w-4 text-gray-400 cursor-help" 
-            title="When enabled, the system will automatically switch between real Arduino data and mock data"
-          />
+          <TooltipProvider>
+            <Tooltip>
+              <TooltipTrigger asChild>
+                <Info className="h-4 w-4 text-gray-400 cursor-help" />
+              </TooltipTrigger>
+              <TooltipContent>
+                When enabled, the system will automatically switch between real Arduino data and mock data
+              </TooltipContent>
+            </Tooltip>
+          </TooltipProvider>
         </div>
       </div>
     </div>

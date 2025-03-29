@@ -1,6 +1,6 @@
 
 // Serial service to connect with Arduino via Web Serial API
-import { SerialData, DataCallback, SerialPortInterface, RawMessageCallback } from './types/serial.types';
+import { SerialData, DataCallback, SerialPortInterface, RawMessageCallback, ErrorCallback } from './types/serial.types';
 import webSocketService from './WebSocketService';
 import mockDataService from './MockDataService';
 import serialReader from './SerialReader';
@@ -10,6 +10,7 @@ class SerialService {
   private port: SerialPortInterface | null = null;
   private callbacks: DataCallback[] = [];
   private rawCallbacks: RawMessageCallback[] = [];
+  private errorCallbacks: ErrorCallback[] = [];
   private isRaspberryPi: boolean = false;
   private autoDetectHardware: boolean = true; // Default to auto-detect
 
@@ -45,56 +46,65 @@ class SerialService {
   async connect(): Promise<boolean> {
     try {
       if (this.isRaspberryPi) {
-        // If we're on the Raspberry Pi, use direct Serial connection
-        if (!this.isSupported) {
-          console.warn("Web Serial API is not supported. Using mock data.");
-          this.setupMockData();
-          return true;
-        }
-
-        if (navigator.serial && (this.autoDetectHardware || !this.port)) {
-          try {
-            this.port = await navigator.serial.requestPort();
-            await this.port.open({ baudRate: 9600 });
-            this.isConnected = true;
-            
-            // Set up the serial reader with our port
-            serialReader.setPort(this.port);
-            
-            // Forward callbacks to the serial reader
-            serialReader.onData((data) => {
-              this.callbacks.forEach(callback => callback(data));
-            });
-            
-            // Forward raw message callbacks to the serial reader
-            serialReader.onRawMessage((message) => {
-              this.rawCallbacks.forEach(callback => callback(message));
-            });
-            
-            // Set up error handling for invalid data
-            serialReader.onError((error) => {
-              this.handleError(error);
-            });
-            
-            // Start reading from the serial port
-            await serialReader.startReading();
+        // If we're on the Raspberry Pi, try to use WebSocket or direct Serial connection
+        if (!this.autoDetectHardware) {
+          // If auto-detect is disabled, respect the user's preference
+          if (!this.isSupported) {
+            throw new Error("Web Serial API is not supported in this browser");
+          }
+          
+          // Try to connect via Web Serial API
+          this.port = await this.requestSerialPort();
+          if (this.port) {
+            await this.setupSerialConnection();
             return true;
-          } catch (error) {
-            console.error("Failed to connect to hardware:", error);
+          }
+          
+          throw new Error("Could not obtain serial port");
+        }
+        
+        // Auto-detect is enabled, try WebSocket first
+        try {
+          webSocketService.connect();
+          webSocketService.onData((data) => {
+            this.callbacks.forEach(callback => callback(data));
+          });
+          this.isConnected = true;
+          return true;
+        } catch (wsError) {
+          console.log("WebSocket connection failed, trying direct serial...", wsError);
+          
+          // If WebSocket fails, try direct Serial
+          if (this.isSupported) {
+            try {
+              this.port = await this.requestSerialPort();
+              if (this.port) {
+                await this.setupSerialConnection();
+                return true;
+              }
+            } catch (serialError) {
+              console.error("Serial connection failed:", serialError);
+              // Fall through to mock data
+            }
+          }
+        }
+      } else {
+        // Not on Raspberry Pi, try direct Serial connection if supported
+        if (this.isSupported) {
+          try {
+            this.port = await this.requestSerialPort();
+            if (this.port) {
+              await this.setupSerialConnection();
+              return true;
+            }
+          } catch (serialError) {
+            console.error("Failed to connect to hardware:", serialError);
             if (!this.autoDetectHardware) {
-              throw error; // Only throw if not auto-detecting
+              throw serialError; // Only throw if not auto-detecting
             }
             // Fall through to mock data if auto-detecting
           }
         }
-      } else {
-        // If we're on another device, connect via WebSocket
-        webSocketService.connect();
-        webSocketService.onData((data) => {
-          this.callbacks.forEach(callback => callback(data));
-        });
-        this.isConnected = true;
-        return true;
       }
       
       // If we reach here and auto-detecting, use mock data
@@ -120,6 +130,7 @@ class SerialService {
   // Handle errors from serial connection
   private handleError(error: Error): void {
     console.error("Serial connection error:", error);
+    
     // Notify about invalid data or disconnection
     const errorMessage = error.message.includes("Invalid data") 
       ? "Arduino sent invalid data format" 
@@ -131,11 +142,60 @@ class SerialService {
     });
     document.dispatchEvent(event);
     
+    // Notify registered error callbacks
+    this.errorCallbacks.forEach(callback => callback(error));
+    
     // If auto-detecting, try to reconnect or fallback to mock data
     if (this.autoDetectHardware) {
       this.disconnect().then(() => {
         this.setupMockData();
       });
+    }
+  }
+
+  private async requestSerialPort(): Promise<SerialPortInterface | null> {
+    if (!navigator.serial) {
+      return null;
+    }
+    
+    try {
+      return await navigator.serial.requestPort();
+    } catch (error) {
+      console.error("Error requesting serial port:", error);
+      return null;
+    }
+  }
+  
+  private async setupSerialConnection(): Promise<void> {
+    if (!this.port) return;
+    
+    try {
+      await this.port.open({ baudRate: 9600 });
+      this.isConnected = true;
+      
+      // Set up the serial reader with our port
+      serialReader.setPort(this.port);
+      
+      // Forward callbacks to the serial reader
+      serialReader.onData((data) => {
+        this.callbacks.forEach(callback => callback(data));
+      });
+      
+      // Forward raw message callbacks to the serial reader
+      serialReader.onRawMessage((message) => {
+        this.rawCallbacks.forEach(callback => callback(message));
+      });
+      
+      // Set up error handling for invalid data
+      serialReader.onError((error) => {
+        this.handleError(error);
+      });
+      
+      // Start reading from the serial port
+      await serialReader.startReading();
+    } catch (error) {
+      console.error("Error setting up serial connection:", error);
+      throw error;
     }
   }
 
@@ -186,6 +246,11 @@ class SerialService {
   // Register a callback to receive raw messages
   onRawMessage(callback: RawMessageCallback): void {
     this.rawCallbacks.push(callback);
+  }
+  
+  // Register a callback to receive error notifications
+  onError(callback: ErrorCallback): void {
+    this.errorCallbacks.push(callback);
   }
 }
 
