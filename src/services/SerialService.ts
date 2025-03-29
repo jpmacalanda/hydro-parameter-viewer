@@ -1,4 +1,3 @@
-
 // Serial service to connect with Arduino via Web Serial API
 import { SerialData, DataCallback, SerialPortInterface, RawMessageCallback, ErrorCallback } from './types/serial.types';
 import webSocketService from './WebSocketService';
@@ -13,6 +12,7 @@ class SerialService {
   private errorCallbacks: ErrorCallback[] = [];
   private isRaspberryPi: boolean = false;
   private autoDetectHardware: boolean = true; // Default to auto-detect
+  private useMockData: boolean = false;
 
   constructor() {
     // Check if we're running on the Raspberry Pi
@@ -41,10 +41,18 @@ class SerialService {
     this.autoDetectHardware = value;
     localStorage.setItem('autoDetectHardware', value.toString());
   }
+  
+  // Check if we're currently using mock data
+  get isMockData(): boolean {
+    return this.useMockData;
+  }
 
   // Connect to the Arduino via Serial port
   async connect(): Promise<boolean> {
     try {
+      // Reset mock data flag at the start of each connection attempt
+      this.useMockData = false;
+      
       if (this.isRaspberryPi) {
         // If we're on the Raspberry Pi, try to use WebSocket or direct Serial connection
         if (!this.autoDetectHardware) {
@@ -84,7 +92,13 @@ class SerialService {
               }
             } catch (serialError) {
               console.error("Serial connection failed:", serialError);
-              // Fall through to mock data
+              // Don't automatically fall through to mock data
+              if (this.autoDetectHardware) {
+                this.useMockData = true;
+                this.setupMockData();
+                return true;
+              }
+              throw serialError;
             }
           }
         }
@@ -102,14 +116,27 @@ class SerialService {
             if (!this.autoDetectHardware) {
               throw serialError; // Only throw if not auto-detecting
             }
-            // Fall through to mock data if auto-detecting
+            // Only fall through to mock data if auto-detecting is enabled
+            this.useMockData = true;
+            this.setupMockData();
+            return true;
           }
+        } else if (!this.isSupported && this.autoDetectHardware) {
+          // If Web Serial isn't supported and auto-detect is on, use mock data
+          console.log("Web Serial API not supported, using mock data instead");
+          this.useMockData = true;
+          this.setupMockData();
+          return true;
+        } else {
+          // Web Serial not supported and auto-detect is off
+          throw new Error("Web Serial API is not supported in this browser");
         }
       }
       
-      // If we reach here and auto-detecting, use mock data
+      // If we reach here and explicitly want to fall back to mock data
       if (this.autoDetectHardware) {
         console.log("Using mock data instead of real hardware.");
+        this.useMockData = true;
         this.setupMockData();
         return true;
       }
@@ -119,6 +146,7 @@ class SerialService {
       console.error("Failed to connect:", error);
       
       if (this.autoDetectHardware) {
+        this.useMockData = true;
         this.setupMockData();
         return true;
       }
@@ -148,6 +176,7 @@ class SerialService {
     // If auto-detecting, try to reconnect or fallback to mock data
     if (this.autoDetectHardware) {
       this.disconnect().then(() => {
+        this.useMockData = true;
         this.setupMockData();
       });
     }
@@ -209,6 +238,7 @@ class SerialService {
     });
     mockDataService.startMockDataEmission();
     this.isConnected = true;
+    this.useMockData = true;
   }
 
   // Disconnect from the serial device

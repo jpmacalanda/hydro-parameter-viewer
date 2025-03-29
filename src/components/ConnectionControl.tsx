@@ -20,6 +20,7 @@ const ConnectionControl: React.FC<ConnectionControlProps> = ({
 }) => {
   const [connecting, setConnecting] = useState(false);
   const [autoDetect, setAutoDetect] = useState(serialService.autoDetect);
+  const [usingMockData, setUsingMockData] = useState(false);
   const isWebSerialSupported = serialService.isSupported;
   
   useEffect(() => {
@@ -45,15 +46,17 @@ const ConnectionControl: React.FC<ConnectionControlProps> = ({
       const success = await serialService.connect();
       
       if (success) {
-        if (isWebSerialSupported && (autoDetect ? "detected hardware" : "using hardware")) {
-          toast.success("Connected to Arduino", {
-            description: "Now receiving data via serial connection"
-          });
-        } else {
+        setUsingMockData(serialService.isMockData);
+        
+        if (serialService.isMockData) {
           toast.info("Using simulated data", {
             description: autoDetect ? 
               "No hardware detected, using mock data instead" : 
               "Web Serial API not supported, using mock data instead"
+          });
+        } else {
+          toast.success("Connected to Arduino", {
+            description: "Now receiving data via serial connection"
           });
         }
         onConnect();
@@ -76,6 +79,7 @@ const ConnectionControl: React.FC<ConnectionControlProps> = ({
     try {
       await serialService.disconnect();
       toast.info("Disconnected from device");
+      setUsingMockData(false);
     } catch (error) {
       console.error("Disconnection error:", error);
     }
@@ -125,7 +129,7 @@ const ConnectionControl: React.FC<ConnectionControlProps> = ({
               className={`mr-2 w-3 h-3 rounded-full ${isConnected ? 'bg-green-500' : 'bg-gray-400'}`}
             ></div>
             <span className="text-sm text-gray-600">
-              {isConnected ? "Connected" : "Disconnected"}
+              {isConnected ? (usingMockData ? "Connected (Mock Data)" : "Connected") : "Disconnected"}
             </span>
           </div>
         </div>
