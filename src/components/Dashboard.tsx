@@ -13,9 +13,8 @@ import { Switch } from "@/components/ui/switch";
 import { Label } from "@/components/ui/label";
 import { Tabs, TabsContent, TabsList, TabsTrigger } from "@/components/ui/tabs";
 import { toast } from "sonner";
-import { Activity, Gauge, Settings, Flask } from "lucide-react";
+import { Activity, Gauge, Settings, Gauge2 } from "lucide-react";
 
-// Default initial values
 const initialParams = {
   ph: 6.0,
   temperature: 23.0,
@@ -23,7 +22,6 @@ const initialParams = {
   tds: 650
 };
 
-// Default threshold values
 const initialThresholds = {
   phMin: 5.5,
   phMax: 6.5,
@@ -33,13 +31,11 @@ const initialThresholds = {
   tdsMax: 1000
 };
 
-// Default calibration values
 const initialCalibration = {
   phCalibrationConstant: 1.0,
   tdsCalibrationFactor: 1.0
 };
 
-// Maximum number of data points to keep in history
 const MAX_HISTORY_LENGTH = 20;
 
 const Dashboard: React.FC = () => {
@@ -51,15 +47,12 @@ const Dashboard: React.FC = () => {
   const [thresholds, setThresholds] = useState(initialThresholds);
   const [calibration, setCalibration] = useState(initialCalibration);
   
-  // Historical data for graphs
   const [phHistory, setPhHistory] = useState<Array<{time: string; value: number}>>([]);
   const [tempHistory, setTempHistory] = useState<Array<{time: string; value: number}>>([]);
   const [tdsHistory, setTdsHistory] = useState<Array<{time: string; value: number}>>([]);
   
   useEffect(() => {
-    // Set up the callback to receive data
     serialService.onData((data) => {
-      // Apply calibration to the incoming data
       const calibratedData = {
         ...data,
         ph: parseFloat((data.ph * calibration.phCalibrationConstant).toFixed(1)),
@@ -70,33 +63,28 @@ const Dashboard: React.FC = () => {
       const now = new Date();
       setLastUpdate(now);
       
-      // Update historical data
       const timeStr = now.toLocaleTimeString([], { hour: '2-digit', minute: '2-digit', second: '2-digit' });
       
-      // Update pH history
       setPhHistory(prev => {
         const newHistory = [...prev, { time: timeStr, value: calibratedData.ph }];
-        return newHistory.slice(-MAX_HISTORY_LENGTH); // Keep only the latest entries
+        return newHistory.slice(-MAX_HISTORY_LENGTH);
       });
       
-      // Update temperature history
       setTempHistory(prev => {
         const newHistory = [...prev, { time: timeStr, value: calibratedData.temperature }];
         return newHistory.slice(-MAX_HISTORY_LENGTH);
       });
       
-      // Update TDS history
       setTdsHistory(prev => {
         const newHistory = [...prev, { time: timeStr, value: calibratedData.tds }];
         return newHistory.slice(-MAX_HISTORY_LENGTH);
       });
     });
     
-    // Clean up on unmount
     return () => {
       serialService.disconnect();
     };
-  }, [calibration]); // Re-run when calibration changes
+  }, [calibration]);
   
   const handleConnect = () => {
     setConnected(true);
@@ -105,7 +93,6 @@ const Dashboard: React.FC = () => {
   const handleSaveThresholds = (newThresholds: typeof thresholds) => {
     setThresholds(newThresholds);
     
-    // Save to localStorage
     try {
       localStorage.setItem('hydroponics-thresholds', JSON.stringify(newThresholds));
       toast.success("Threshold settings saved successfully");
@@ -118,7 +105,6 @@ const Dashboard: React.FC = () => {
   const handleSaveCalibration = (newCalibration: typeof calibration) => {
     setCalibration(newCalibration);
     
-    // Save to localStorage
     try {
       localStorage.setItem('hydroponics-calibration', JSON.stringify(newCalibration));
     } catch (error) {
@@ -126,7 +112,6 @@ const Dashboard: React.FC = () => {
     }
   };
   
-  // Load settings from localStorage on component mount
   useEffect(() => {
     try {
       const savedThresholds = localStorage.getItem('hydroponics-thresholds');
@@ -166,7 +151,7 @@ const Dashboard: React.FC = () => {
             <span>Thresholds</span>
           </TabsTrigger>
           <TabsTrigger value="calibration" className="flex items-center gap-2">
-            <Flask size={16} />
+            <Gauge2 size={16} />
             <span>Calibration</span>
           </TabsTrigger>
           <TabsTrigger value="statistics" className="flex items-center gap-2">
@@ -261,7 +246,6 @@ const Dashboard: React.FC = () => {
             </div>
           </div>
           
-          {/* Quick info about the parameters */}
           <div className="mt-4 text-sm text-gray-600">
             <p className="mb-1">• pH: Measures the acidity/alkalinity of your solution (optimal range: {thresholds.phMin}-{thresholds.phMax})</p>
             <p className="mb-1">• Temperature: Water temperature in Celsius (optimal range: {thresholds.temperatureMin}-{thresholds.temperatureMax}°C)</p>
