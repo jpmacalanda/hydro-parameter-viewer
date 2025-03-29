@@ -47,8 +47,34 @@ class SerialService {
     return this.useMockData;
   }
 
+  // Get available ports (if supported)
+  async getAvailablePorts(): Promise<SerialPortInfo[]> {
+    if (!this.isSupported || !navigator.serial?.getPorts) {
+      return [];
+    }
+    
+    try {
+      const ports = await navigator.serial.getPorts();
+      return ports.map((port, index) => {
+        // Extract information about the port if available
+        const info = port.getInfo ? port.getInfo() : {};
+        return {
+          id: index.toString(),
+          port: port,
+          // Use available info or placeholders
+          displayName: info.usbVendorId ? 
+            `Device ${info.usbVendorId.toString(16)}:${info.usbProductId?.toString(16) || '0000'}` : 
+            `COM Port ${index + 1}`
+        };
+      });
+    } catch (error) {
+      console.error("Error getting available ports:", error);
+      return [];
+    }
+  }
+
   // Connect to the Arduino via Serial port
-  async connect(): Promise<boolean> {
+  async connect(selectedPort?: SerialPortInterface): Promise<boolean> {
     try {
       // Reset mock data flag at the start of each connection attempt
       this.useMockData = false;
@@ -106,7 +132,8 @@ class SerialService {
         // Not on Raspberry Pi, try direct Serial connection if supported
         if (this.isSupported) {
           try {
-            this.port = await this.requestSerialPort();
+            // Use selected port if provided, otherwise request a port
+            this.port = selectedPort || await this.requestSerialPort();
             if (this.port) {
               await this.setupSerialConnection();
               return true;
