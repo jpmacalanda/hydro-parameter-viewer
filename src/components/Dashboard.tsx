@@ -3,11 +3,14 @@ import PHDisplay from './PHDisplay';
 import TemperatureDisplay from './TemperatureDisplay';
 import WaterLevelDisplay from './WaterLevelDisplay';
 import TDSDisplay from './TDSDisplay';
+import ThresholdSettings from './ThresholdSettings';
 import ConnectionControl from './ConnectionControl';
 import serialService from '@/services/SerialService';
 import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
 import { Switch } from "@/components/ui/switch";
 import { Label } from "@/components/ui/label";
+import { Tabs, TabsContent, TabsList, TabsTrigger } from "@/components/ui/tabs";
+import { toast } from "sonner";
 
 // Default initial values
 const initialParams = {
@@ -15,6 +18,16 @@ const initialParams = {
   temperature: 23.0,
   waterLevel: 'medium' as 'low' | 'medium' | 'high',
   tds: 650
+};
+
+// Default threshold values
+const initialThresholds = {
+  phMin: 5.5,
+  phMax: 6.5,
+  temperatureMin: 18,
+  temperatureMax: 26,
+  tdsMin: 500,
+  tdsMax: 1000
 };
 
 // Maximum number of data points to keep in history
@@ -25,6 +38,8 @@ const Dashboard: React.FC = () => {
   const [params, setParams] = useState(initialParams);
   const [lastUpdate, setLastUpdate] = useState<Date | null>(null);
   const [showGraphs, setShowGraphs] = useState(true);
+  const [activeTab, setActiveTab] = useState("monitor");
+  const [thresholds, setThresholds] = useState(initialThresholds);
   
   // Historical data for graphs
   const [phHistory, setPhHistory] = useState<Array<{time: string; value: number}>>([]);
@@ -70,6 +85,29 @@ const Dashboard: React.FC = () => {
     setConnected(true);
   };
   
+  const handleSaveThresholds = (newThresholds: typeof thresholds) => {
+    setThresholds(newThresholds);
+    
+    // In a real application, you might want to save these to localStorage or a backend
+    try {
+      localStorage.setItem('hydroponics-thresholds', JSON.stringify(newThresholds));
+    } catch (error) {
+      console.error('Failed to save thresholds to localStorage', error);
+    }
+  };
+  
+  // Load thresholds from localStorage on component mount
+  useEffect(() => {
+    try {
+      const savedThresholds = localStorage.getItem('hydroponics-thresholds');
+      if (savedThresholds) {
+        setThresholds(JSON.parse(savedThresholds));
+      }
+    } catch (error) {
+      console.error('Failed to load thresholds from localStorage', error);
+    }
+  }, []);
+  
   return (
     <div className="container mx-auto p-4 max-w-6xl">
       <header className="mb-6">
@@ -82,21 +120,60 @@ const Dashboard: React.FC = () => {
         />
       </header>
       
-      <div className="flex items-center space-x-2 mb-4">
-        <Switch 
-          id="show-graphs" 
-          checked={showGraphs} 
-          onCheckedChange={setShowGraphs}
-        />
-        <Label htmlFor="show-graphs">Show Historical Graphs</Label>
-      </div>
-      
-      <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-2 gap-6">
-        <PHDisplay value={params.ph} history={phHistory} showGraph={showGraphs} />
-        <TemperatureDisplay value={params.temperature} history={tempHistory} showGraph={showGraphs} />
-        <WaterLevelDisplay level={params.waterLevel} />
-        <TDSDisplay value={params.tds} history={tdsHistory} showGraph={showGraphs} />
-      </div>
+      <Tabs value={activeTab} onValueChange={setActiveTab} className="w-full">
+        <TabsList className="grid w-full grid-cols-2 mb-6">
+          <TabsTrigger value="monitor">Monitoring</TabsTrigger>
+          <TabsTrigger value="settings">Threshold Settings</TabsTrigger>
+        </TabsList>
+        
+        <TabsContent value="monitor" className="space-y-4">
+          <div className="flex items-center space-x-2 mb-4">
+            <Switch 
+              id="show-graphs" 
+              checked={showGraphs} 
+              onCheckedChange={setShowGraphs}
+            />
+            <Label htmlFor="show-graphs">Show Historical Graphs</Label>
+          </div>
+          
+          <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-2 gap-6">
+            <PHDisplay 
+              value={params.ph} 
+              history={phHistory} 
+              showGraph={showGraphs} 
+              optimalMin={thresholds.phMin}
+              optimalMax={thresholds.phMax}
+            />
+            <TemperatureDisplay 
+              value={params.temperature} 
+              history={tempHistory} 
+              showGraph={showGraphs} 
+              optimalMin={thresholds.temperatureMin}
+              optimalMax={thresholds.temperatureMax}
+            />
+            <WaterLevelDisplay level={params.waterLevel} />
+            <TDSDisplay 
+              value={params.tds} 
+              history={tdsHistory} 
+              showGraph={showGraphs} 
+              optimalMin={thresholds.tdsMin}
+              optimalMax={thresholds.tdsMax}
+            />
+          </div>
+        </TabsContent>
+        
+        <TabsContent value="settings">
+          <ThresholdSettings 
+            phMin={thresholds.phMin}
+            phMax={thresholds.phMax}
+            temperatureMin={thresholds.temperatureMin}
+            temperatureMax={thresholds.temperatureMax}
+            tdsMin={thresholds.tdsMin}
+            tdsMax={thresholds.tdsMax}
+            onSave={handleSaveThresholds}
+          />
+        </TabsContent>
+      </Tabs>
       
       <Card className="mt-6">
         <CardHeader>
@@ -126,10 +203,10 @@ const Dashboard: React.FC = () => {
           
           {/* Quick info about the parameters */}
           <div className="mt-4 text-sm text-gray-600">
-            <p className="mb-1">• pH: Measures the acidity/alkalinity of your solution (optimal range: 5.5-6.5)</p>
-            <p className="mb-1">• Temperature: Water temperature in Celsius (optimal range: 18-26°C)</p>
+            <p className="mb-1">• pH: Measures the acidity/alkalinity of your solution (optimal range: {thresholds.phMin}-{thresholds.phMax})</p>
+            <p className="mb-1">• Temperature: Water temperature in Celsius (optimal range: {thresholds.temperatureMin}-{thresholds.temperatureMax}°C)</p>
             <p className="mb-1">• Water Level: Current reservoir water level</p>
-            <p className="mb-1">• TDS: Total Dissolved Solids - indicates nutrient concentration (optimal: 500-1000 PPM)</p>
+            <p className="mb-1">• TDS: Total Dissolved Solids - indicates nutrient concentration (optimal: {thresholds.tdsMin}-{thresholds.tdsMax} PPM)</p>
           </div>
         </CardContent>
       </Card>

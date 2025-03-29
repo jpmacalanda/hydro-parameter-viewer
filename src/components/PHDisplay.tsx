@@ -9,23 +9,28 @@ interface PHDisplayProps {
   value: number;
   history?: Array<{time: string; value: number}>;
   showGraph?: boolean;
+  optimalMin?: number;
+  optimalMax?: number;
 }
 
-const PHDisplay: React.FC<PHDisplayProps> = ({ value, history = [], showGraph = false }) => {
+const PHDisplay: React.FC<PHDisplayProps> = ({ 
+  value, 
+  history = [], 
+  showGraph = false,
+  optimalMin = 5.5,
+  optimalMax = 6.5
+}) => {
   // pH typically ranges from 0-14, with 7 being neutral
-  // For hydroponics, optimal range is usually 5.5-6.5
   const phMin = 0;
   const phMax = 14;
-  const phOptimalMin = 5.5;
-  const phOptimalMax = 6.5;
   
   // Calculate progress percentage (0-100)
   const progressPercent = (value / phMax) * 100;
   
   // Determine status based on pH value
   const getStatus = () => {
-    if (value < phOptimalMin) return "low";
-    if (value > phOptimalMax) return "high";
+    if (value < optimalMin) return "low";
+    if (value > optimalMax) return "high";
     return "normal";
   };
   
@@ -87,14 +92,14 @@ const PHDisplay: React.FC<PHDisplayProps> = ({ value, history = [], showGraph = 
           <div 
             className="absolute h-3 bg-green-200 opacity-40 top-[18px] rounded-sm" 
             style={{ 
-              left: `${(phOptimalMin / phMax) * 100}%`, 
-              width: `${((phOptimalMax - phOptimalMin) / phMax) * 100}%` 
+              left: `${(optimalMin / phMax) * 100}%`, 
+              width: `${((optimalMax - optimalMin) / phMax) * 100}%` 
             }}
           ></div>
         </div>
         
         <div className="mt-4 text-xs text-gray-500">
-          <p>Target: 5.5-6.5 pH</p>
+          <p>Target: {optimalMin}-{optimalMax} pH</p>
           <p>Last updated: {new Date().toLocaleTimeString()}</p>
         </div>
 

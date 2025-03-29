@@ -9,22 +9,28 @@ interface TDSDisplayProps {
   value: number;
   history?: Array<{time: string; value: number}>;
   showGraph?: boolean;
+  optimalMin?: number;
+  optimalMax?: number;
 }
 
-const TDSDisplay: React.FC<TDSDisplayProps> = ({ value, history = [], showGraph = false }) => {
+const TDSDisplay: React.FC<TDSDisplayProps> = ({ 
+  value, 
+  history = [], 
+  showGraph = false,
+  optimalMin = 500,
+  optimalMax = 1000
+}) => {
   // TDS ranges for hydroponics (in PPM)
   const tdsMin = 0;
   const tdsMax = 2000;
-  const tdsOptimalMin = 500;
-  const tdsOptimalMax = 1000;
   
   // Calculate progress percentage (0-100)
   const progressPercent = (value / tdsMax) * 100;
   
   // Determine status based on TDS value
   const getStatus = () => {
-    if (value < tdsOptimalMin) return "low";
-    if (value > tdsOptimalMax) return "high";
+    if (value < optimalMin) return "low";
+    if (value > optimalMax) return "high";
     return "normal";
   };
   
@@ -86,14 +92,14 @@ const TDSDisplay: React.FC<TDSDisplayProps> = ({ value, history = [], showGraph 
           <div 
             className="absolute h-3 bg-green-200 opacity-40 top-[18px] rounded-sm" 
             style={{ 
-              left: `${(tdsOptimalMin / tdsMax) * 100}%`, 
-              width: `${((tdsOptimalMax - tdsOptimalMin) / tdsMax) * 100}%` 
+              left: `${(optimalMin / tdsMax) * 100}%`, 
+              width: `${((optimalMax - optimalMin) / tdsMax) * 100}%` 
             }}
           ></div>
         </div>
         
         <div className="mt-4 text-xs text-gray-500">
-          <p>Target: 500-1000 PPM</p>
+          <p>Target: {optimalMin}-{optimalMax} PPM</p>
           <p>Last updated: {new Date().toLocaleTimeString()}</p>
         </div>
 

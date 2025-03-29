@@ -9,20 +9,25 @@ interface TemperatureDisplayProps {
   value: number;
   history?: Array<{time: string; value: number}>;
   showGraph?: boolean;
+  optimalMin?: number;
+  optimalMax?: number;
 }
 
-const TemperatureDisplay: React.FC<TemperatureDisplayProps> = ({ value, history = [], showGraph = false }) => {
-  // Temperature range for display (Celsius)
-  const tempMin = 10;
-  const tempMax = 35;
-  const optimalMin = 18;
-  const optimalMax = 26;
+const TemperatureDisplay: React.FC<TemperatureDisplayProps> = ({ 
+  value, 
+  history = [], 
+  showGraph = false,
+  optimalMin = 18,
+  optimalMax = 26
+}) => {
+  // Temperature range for display purposes
+  const tempMin = 0;
+  const tempMax = 40;
   
   // Calculate progress percentage (0-100)
-  const boundedValue = Math.max(tempMin, Math.min(tempMax, value));
-  const progressPercent = ((boundedValue - tempMin) / (tempMax - tempMin)) * 100;
+  const progressPercent = (value / tempMax) * 100;
   
-  // Determine status based on temperature
+  // Determine status based on temperature value
   const getStatus = () => {
     if (value < optimalMin) return "low";
     if (value > optimalMax) return "high";
@@ -31,7 +36,7 @@ const TemperatureDisplay: React.FC<TemperatureDisplayProps> = ({ value, history 
   
   const status = getStatus();
   
-  // Set color based on status
+  // Set color based on temperature status
   const getColor = () => {
     switch (status) {
       case "low": return "hydro-temp-low";
@@ -42,8 +47,8 @@ const TemperatureDisplay: React.FC<TemperatureDisplayProps> = ({ value, history 
   
   const statusText = () => {
     switch (status) {
-      case "low": return "Too Cool";
-      case "high": return "Too Warm";
+      case "low": return "Too Cold";
+      case "high": return "Too Hot";
       case "normal": return "Optimal";
     }
   };
@@ -78,7 +83,7 @@ const TemperatureDisplay: React.FC<TemperatureDisplayProps> = ({ value, history 
             className="h-2 bg-gray-200"
           />
           <div className="mt-1 flex justify-between text-xs">
-            <span>{tempMin}°C</span>
+            <span>{tempMin}</span>
             <span></span>
             <span>{tempMax}°C</span>
           </div>
@@ -87,14 +92,14 @@ const TemperatureDisplay: React.FC<TemperatureDisplayProps> = ({ value, history 
           <div 
             className="absolute h-3 bg-green-200 opacity-40 top-[18px] rounded-sm" 
             style={{ 
-              left: `${((optimalMin - tempMin) / (tempMax - tempMin)) * 100}%`, 
-              width: `${((optimalMax - optimalMin) / (tempMax - tempMin)) * 100}%` 
+              left: `${(optimalMin / tempMax) * 100}%`, 
+              width: `${((optimalMax - optimalMin) / tempMax) * 100}%` 
             }}
           ></div>
         </div>
         
         <div className="mt-4 text-xs text-gray-500">
-          <p>Target: 18-26°C</p>
+          <p>Target: {optimalMin}-{optimalMax}°C</p>
           <p>Last updated: {new Date().toLocaleTimeString()}</p>
         </div>
 
@@ -103,10 +108,10 @@ const TemperatureDisplay: React.FC<TemperatureDisplayProps> = ({ value, history 
             data={history} 
             dataKey="value" 
             color="#ff7300" 
-            unit="°C"
             name="Temperature" 
-            min={tempMin}
-            max={tempMax}
+            unit="°C"
+            min={0}
+            max={40}
           />
         )}
       </CardContent>
