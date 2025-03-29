@@ -1,7 +1,7 @@
 
 import React from 'react';
 import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
-import { Water, Levels } from "lucide-react";
+import { Droplet, BarChart } from "lucide-react";
 
 interface WaterLevelDisplayProps {
   level: 'low' | 'medium' | 'high';
@@ -47,7 +47,7 @@ const WaterLevelDisplay: React.FC<WaterLevelDisplayProps> = ({ level }) => {
       <CardHeader className="pb-2">
         <CardTitle className="text-lg flex items-center justify-between">
           <span>Water Level</span>
-          <Levels
+          <BarChart
             size={24} 
             className={`text-${getColor()} animate-pulse-slow`}
           />
