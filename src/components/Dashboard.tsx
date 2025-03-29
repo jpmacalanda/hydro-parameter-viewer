@@ -13,7 +13,7 @@ import { Switch } from "@/components/ui/switch";
 import { Label } from "@/components/ui/label";
 import { Tabs, TabsContent, TabsList, TabsTrigger } from "@/components/ui/tabs";
 import { toast } from "sonner";
-import { Activity, Gauge, Settings, Gauge2 } from "lucide-react";
+import { Activity, Gauge, Settings } from "lucide-react";
 
 const initialParams = {
   ph: 6.0,
@@ -151,7 +151,7 @@ const Dashboard: React.FC = () => {
             <span>Thresholds</span>
           </TabsTrigger>
           <TabsTrigger value="calibration" className="flex items-center gap-2">
-            <Gauge2 size={16} />
+            <Gauge size={16} />
             <span>Calibration</span>
           </TabsTrigger>
           <TabsTrigger value="statistics" className="flex items-center gap-2">
