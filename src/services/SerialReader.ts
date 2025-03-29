@@ -1,164 +1,215 @@
+import { SerialData, SerialPortInterface, DataCallback, RawMessageCallback } from './types/serial.types';
 
-import { SerialData, DataCallback, SerialPortInterface, RawMessageCallback } from './types/serial.types';
+type ErrorCallback = (error: Error) => void;
 
 class SerialReader {
-  private reader: ReadableStreamDefaultReader | null = null;
-  private readInterval: ReturnType<typeof setInterval> | null = null;
-  private callbacks: DataCallback[] = [];
-  private rawCallbacks: RawMessageCallback[] = [];
   private port: SerialPortInterface | null = null;
-
-  constructor() {}
-
-  // Set the port to read from
+  private reader: ReadableStreamDefaultReader | null = null;
+  private reading: boolean = false;
+  private dataCallbacks: DataCallback[] = [];
+  private rawCallbacks: RawMessageCallback[] = [];
+  private errorCallbacks: ErrorCallback[] = [];
+  private buffer: string = '';
+  private lastMessageTime: number = 0;
+  private connectionTimeout: ReturnType<typeof setTimeout> | null = null;
+  
   setPort(port: SerialPortInterface): void {
     this.port = port;
   }
-
-  // Register a callback to receive data
+  
   onData(callback: DataCallback): void {
-    this.callbacks.push(callback);
+    this.dataCallbacks.push(callback);
   }
-
-  // Register a callback to receive raw messages
+  
   onRawMessage(callback: RawMessageCallback): void {
     this.rawCallbacks.push(callback);
   }
-
-  // Start reading data from the serial port
+  
+  onError(callback: ErrorCallback): void {
+    this.errorCallbacks.push(callback);
+  }
+  
   async startReading(): Promise<void> {
-    if (!this.port || !this.port.readable) {
-      console.error("Port is not readable");
+    if (!this.port || this.reading) {
       return;
     }
-
-    // Create a buffer to store incoming data
-    let buffer = "";
     
     try {
+      this.reading = true;
+      this.buffer = '';
+      const textDecoder = new TextDecoder();
       this.reader = this.port.readable.getReader();
       
-      // Set up a loop to read data
-      this.readInterval = setInterval(async () => {
-        try {
-          const { value, done } = await this.reader!.read();
-          
-          if (done) {
-            // The stream has been canceled
-            if (this.readInterval) clearInterval(this.readInterval);
-            return;
-          }
-          
-          // Process the received data
-          const textDecoder = new TextDecoder();
-          const chunk = textDecoder.decode(value);
-          
-          // Add the chunk to our buffer
-          buffer += chunk;
-          
-          // Check if we have a complete message (ending with newline)
-          const lines = buffer.split('\n');
-          
-          // If we have at least one complete line
-          if (lines.length > 1) {
-            // Process all complete lines
-            for (let i = 0; i < lines.length - 1; i++) {
-              const rawMessage = lines[i].trim();
-              
-              // Send raw message to raw callbacks
-              this.rawCallbacks.forEach(callback => callback(rawMessage));
-              
-              // Process the message for parsed data callbacks
-              this.processMessage(rawMessage);
-            }
-            
-            // Keep any incomplete data in the buffer
-            buffer = lines[lines.length - 1];
-          }
-        } catch (error) {
-          console.error("Error reading from serial port:", error);
-          if (this.readInterval) clearInterval(this.readInterval);
-          this.stopReading();
-          throw error;
+      // Set up connection timeout check
+      this.setupConnectionTimeout();
+      
+      while (this.reading) {
+        const { value, done } = await this.reader.read();
+        if (done) {
+          break;
         }
-      }, 100); // Check for new data every 100ms
+        
+        const text = textDecoder.decode(value);
+        this.buffer += text;
+        
+        // Process any complete messages
+        this.processBuffer();
+        
+        // Reset the connection timeout check
+        this.resetConnectionTimeout();
+      }
+      
+      if (this.reader) {
+        await this.reader.releaseLock();
+        this.reader = null;
+      }
     } catch (error) {
-      console.error("Failed to get reader:", error);
-      throw error;
+      console.error('Error reading from serial port:', error);
+      this.notifyError(new Error('Arduino disconnected'));
+    } finally {
+      this.reading = false;
+      this.clearConnectionTimeout();
     }
   }
-
-  // Stop reading from the serial port
+  
   async stopReading(): Promise<void> {
-    if (this.readInterval) {
-      clearInterval(this.readInterval);
-      this.readInterval = null;
-    }
+    this.reading = false;
     
     if (this.reader) {
       try {
         await this.reader.cancel();
+        await this.reader.releaseLock();
         this.reader = null;
       } catch (error) {
-        console.error("Error cancelling reader:", error);
+        console.error('Error stopping reader:', error);
+      }
+    }
+    
+    this.clearConnectionTimeout();
+  }
+  
+  clearCallbacks(): void {
+    this.dataCallbacks = [];
+    this.rawCallbacks = [];
+    this.errorCallbacks = [];
+  }
+  
+  private processBuffer(): void {
+    // Find any complete lines (\n or \r\n terminated)
+    const lines = this.buffer.split(/\r?\n/);
+    
+    // The last element is either an empty string (if the buffer ended with a newline)
+    // or an incomplete line that we should keep in the buffer
+    this.buffer = lines.pop() || '';
+    
+    for (const line of lines) {
+      if (line.trim()) {
+        this.processMessage(line.trim());
       }
     }
   }
-
-  // Process a message from the Arduino
+  
   private processMessage(message: string): void {
     try {
-      // Expected format from Arduino: "pH:6.8,temp:23.5,water:medium,tds:650"
-      const data: SerialData = {
-        ph: 6.0,
-        temperature: 23.0,
-        waterLevel: 'medium' as 'low' | 'medium' | 'high',
-        tds: 650
-      };
+      // Update the last message timestamp
+      this.lastMessageTime = Date.now();
       
-      // Parse the message
-      const parts = message.trim().split(',');
+      // Notify listeners about the raw message
+      this.rawCallbacks.forEach(callback => callback(message));
       
-      parts.forEach(part => {
-        const [key, value] = part.split(':');
-        
-        if (key && value) {
-          switch (key.trim()) {
-            case 'pH':
-            case 'ph':
-              data.ph = parseFloat(value);
-              break;
-            case 'temp':
-            case 'temperature':
-              data.temperature = parseFloat(value);
-              break;
-            case 'water':
-            case 'waterLevel':
-              if (['low', 'medium', 'high'].includes(value.trim())) {
-                data.waterLevel = value.trim() as 'low' | 'medium' | 'high';
-              }
-              break;
-            case 'tds':
-              data.tds = parseInt(value, 10);
-              break;
-          }
-        }
-      });
-      
-      // Send the data to all registered callbacks
-      this.callbacks.forEach(callback => callback(data));
+      // Parse the message format: pH:6.8,temp:23.5,water:medium,tds:650
+      const parsed = this.parseMessage(message);
+      if (parsed) {
+        this.dataCallbacks.forEach(callback => callback(parsed));
+      }
     } catch (error) {
-      console.error("Error processing message:", error, "Message:", message);
+      console.error('Error processing message:', message, error);
+      this.notifyError(new Error(`Invalid data format: ${message}`));
     }
   }
-
-  // Clear all callbacks
-  clearCallbacks(): void {
-    this.callbacks = [];
-    this.rawCallbacks = [];
+  
+  private parseMessage(message: string): SerialData | null {
+    const parts = message.split(',');
+    const data: Partial<SerialData> = {};
+    
+    for (const part of parts) {
+      const [key, value] = part.split(':');
+      
+      if (!key || !value) {
+        throw new Error(`Invalid data format in part: ${part}`);
+      }
+      
+      switch (key.toLowerCase()) {
+        case 'ph':
+          data.ph = parseFloat(value);
+          if (isNaN(data.ph)) {
+            throw new Error(`Invalid pH value: ${value}`);
+          }
+          break;
+        case 'temp':
+          data.temperature = parseFloat(value);
+          if (isNaN(data.temperature)) {
+            throw new Error(`Invalid temperature value: ${value}`);
+          }
+          break;
+        case 'water':
+          if (value !== 'low' && value !== 'medium' && value !== 'high') {
+            throw new Error(`Invalid water level: ${value}`);
+          }
+          data.waterLevel = value;
+          break;
+        case 'tds':
+          data.tds = parseInt(value, 10);
+          if (isNaN(data.tds)) {
+            throw new Error(`Invalid TDS value: ${value}`);
+          }
+          break;
+        default:
+          console.warn(`Unknown data key: ${key}`);
+      }
+    }
+    
+    // Ensure all required fields are present
+    if (
+      typeof data.ph !== 'number' ||
+      typeof data.temperature !== 'number' ||
+      !data.waterLevel ||
+      typeof data.tds !== 'number'
+    ) {
+      throw new Error(`Incomplete data: ${message}`);
+    }
+    
+    return data as SerialData;
+  }
+  
+  private notifyError(error: Error): void {
+    this.errorCallbacks.forEach(callback => callback(error));
+  }
+  
+  private setupConnectionTimeout(): void {
+    this.clearConnectionTimeout();
+    this.lastMessageTime = Date.now();
+    this.connectionTimeout = setInterval(() => {
+      const now = Date.now();
+      // If no message for 10 seconds, consider Arduino disconnected
+      if (now - this.lastMessageTime > 10000) {
+        this.notifyError(new Error('Arduino disconnected (timeout)'));
+        this.stopReading();
+      }
+    }, 5000);
+  }
+  
+  private resetConnectionTimeout(): void {
+    this.lastMessageTime = Date.now();
+  }
+  
+  private clearConnectionTimeout(): void {
+    if (this.connectionTimeout) {
+      clearInterval(this.connectionTimeout);
+      this.connectionTimeout = null;
+    }
   }
 }
 
-// Create a singleton instance
 const serialReader = new SerialReader();
 export default serialReader;
