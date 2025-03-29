@@ -3,12 +3,15 @@ import React from 'react';
 import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
 import { Progress } from "@/components/ui/progress";
 import { Droplet } from "lucide-react";
+import TimeGraph from './TimeGraph';
 
 interface PHDisplayProps {
   value: number;
+  history?: Array<{time: string; value: number}>;
+  showGraph?: boolean;
 }
 
-const PHDisplay: React.FC<PHDisplayProps> = ({ value }) => {
+const PHDisplay: React.FC<PHDisplayProps> = ({ value, history = [], showGraph = false }) => {
   // pH typically ranges from 0-14, with 7 being neutral
   // For hydroponics, optimal range is usually 5.5-6.5
   const phMin = 0;
@@ -94,6 +97,17 @@ const PHDisplay: React.FC<PHDisplayProps> = ({ value }) => {
           <p>Target: 5.5-6.5 pH</p>
           <p>Last updated: {new Date().toLocaleTimeString()}</p>
         </div>
+
+        {showGraph && history.length > 0 && (
+          <TimeGraph 
+            data={history} 
+            dataKey="value" 
+            color="#8884d8" 
+            name="pH Level" 
+            min={0}
+            max={14}
+          />
+        )}
       </CardContent>
     </Card>
   );

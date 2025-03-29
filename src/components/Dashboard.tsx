@@ -1,4 +1,3 @@
-
 import React, { useState, useEffect } from 'react';
 import PHDisplay from './PHDisplay';
 import TemperatureDisplay from './TemperatureDisplay';
@@ -7,6 +6,8 @@ import TDSDisplay from './TDSDisplay';
 import ConnectionControl from './ConnectionControl';
 import serialService from '@/services/SerialService';
 import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
+import { Switch } from "@/components/ui/switch";
+import { Label } from "@/components/ui/label";
 
 // Default initial values
 const initialParams = {
@@ -16,16 +17,47 @@ const initialParams = {
   tds: 650
 };
 
+// Maximum number of data points to keep in history
+const MAX_HISTORY_LENGTH = 20;
+
 const Dashboard: React.FC = () => {
   const [connected, setConnected] = useState(false);
   const [params, setParams] = useState(initialParams);
   const [lastUpdate, setLastUpdate] = useState<Date | null>(null);
+  const [showGraphs, setShowGraphs] = useState(true);
+  
+  // Historical data for graphs
+  const [phHistory, setPhHistory] = useState<Array<{time: string; value: number}>>([]);
+  const [tempHistory, setTempHistory] = useState<Array<{time: string; value: number}>>([]);
+  const [tdsHistory, setTdsHistory] = useState<Array<{time: string; value: number}>>([]);
   
   useEffect(() => {
     // Set up the callback to receive data
     serialService.onData((data) => {
       setParams(data);
-      setLastUpdate(new Date());
+      const now = new Date();
+      setLastUpdate(now);
+      
+      // Update historical data
+      const timeStr = now.toLocaleTimeString([], { hour: '2-digit', minute: '2-digit', second: '2-digit' });
+      
+      // Update pH history
+      setPhHistory(prev => {
+        const newHistory = [...prev, { time: timeStr, value: data.ph }];
+        return newHistory.slice(-MAX_HISTORY_LENGTH); // Keep only the latest entries
+      });
+      
+      // Update temperature history
+      setTempHistory(prev => {
+        const newHistory = [...prev, { time: timeStr, value: data.temperature }];
+        return newHistory.slice(-MAX_HISTORY_LENGTH);
+      });
+      
+      // Update TDS history
+      setTdsHistory(prev => {
+        const newHistory = [...prev, { time: timeStr, value: data.tds }];
+        return newHistory.slice(-MAX_HISTORY_LENGTH);
+      });
     });
     
     // Clean up on unmount
@@ -50,11 +82,20 @@ const Dashboard: React.FC = () => {
         />
       </header>
       
+      <div className="flex items-center space-x-2 mb-4">
+        <Switch 
+          id="show-graphs" 
+          checked={showGraphs} 
+          onCheckedChange={setShowGraphs}
+        />
+        <Label htmlFor="show-graphs">Show Historical Graphs</Label>
+      </div>
+      
       <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-2 gap-6">
-        <PHDisplay value={params.ph} />
-        <TemperatureDisplay value={params.temperature} />
+        <PHDisplay value={params.ph} history={phHistory} showGraph={showGraphs} />
+        <TemperatureDisplay value={params.temperature} history={tempHistory} showGraph={showGraphs} />
         <WaterLevelDisplay level={params.waterLevel} />
-        <TDSDisplay value={params.tds} />
+        <TDSDisplay value={params.tds} history={tdsHistory} showGraph={showGraphs} />
       </div>
       
       <Card className="mt-6">

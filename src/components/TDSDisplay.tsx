@@ -3,12 +3,15 @@ import React from 'react';
 import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
 import { Progress } from "@/components/ui/progress";
 import { Droplet } from "lucide-react";
+import TimeGraph from './TimeGraph';
 
 interface TDSDisplayProps {
   value: number;
+  history?: Array<{time: string; value: number}>;
+  showGraph?: boolean;
 }
 
-const TDSDisplay: React.FC<TDSDisplayProps> = ({ value }) => {
+const TDSDisplay: React.FC<TDSDisplayProps> = ({ value, history = [], showGraph = false }) => {
   // TDS ranges for hydroponics (in PPM)
   const tdsMin = 0;
   const tdsMax = 2000;
@@ -93,6 +96,18 @@ const TDSDisplay: React.FC<TDSDisplayProps> = ({ value }) => {
           <p>Target: 500-1000 PPM</p>
           <p>Last updated: {new Date().toLocaleTimeString()}</p>
         </div>
+
+        {showGraph && history.length > 0 && (
+          <TimeGraph 
+            data={history} 
+            dataKey="value" 
+            color="#82ca9d" 
+            unit=" PPM"
+            name="TDS Level" 
+            min={0}
+            max={2000}
+          />
+        )}
       </CardContent>
     </Card>
   );

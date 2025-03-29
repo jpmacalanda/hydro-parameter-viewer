@@ -1,3 +1,4 @@
+
 // Serial service to connect with Arduino via Web Serial API
 
 interface SerialData {
@@ -9,9 +10,25 @@ interface SerialData {
 
 type DataCallback = (data: SerialData) => void;
 
+// Define a type for SerialPort if it doesn't exist
+interface SerialPortInterface {
+  readable: ReadableStream;
+  close(): Promise<void>;
+  open(options: { baudRate: number }): Promise<void>;
+}
+
+// Extend the Navigator interface to include serial
+declare global {
+  interface Navigator {
+    serial?: {
+      requestPort(): Promise<SerialPortInterface>;
+    }
+  }
+}
+
 class SerialService {
   private isConnected: boolean = false;
-  private port: SerialPort | null = null;
+  private port: SerialPortInterface | null = null;
   private reader: ReadableStreamDefaultReader | null = null;
   private callbacks: DataCallback[] = [];
   private readInterval: ReturnType<typeof setInterval> | null = null;
@@ -34,15 +51,19 @@ class SerialService {
       }
 
       // Request a port
-      this.port = await navigator.serial.requestPort();
-      
-      // Open the port with appropriate Arduino settings (9600 baud rate is common for Arduino)
-      await this.port.open({ baudRate: 9600 });
-      
-      // Start reading data
-      this.isConnected = true;
-      this.startReading();
-      return true;
+      if (navigator.serial) {
+        this.port = await navigator.serial.requestPort();
+        
+        // Open the port with appropriate Arduino settings (9600 baud rate is common for Arduino)
+        await this.port.open({ baudRate: 9600 });
+        
+        // Start reading data
+        this.isConnected = true;
+        this.startReading();
+        return true;
+      } else {
+        throw new Error("Web Serial API is not available");
+      }
     } catch (error) {
       console.error("Failed to connect to Arduino:", error);
       // Fall back to mock data if connection fails
@@ -94,7 +115,7 @@ class SerialService {
   }
 
   // Start reading data from Arduino
-  private async startReading(): void {
+  private async startReading(): Promise<void> {
     if (!this.port || !this.port.readable) {
       console.error("Port is not readable");
       return;

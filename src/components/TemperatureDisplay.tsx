@@ -3,12 +3,15 @@ import React from 'react';
 import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
 import { Progress } from "@/components/ui/progress";
 import { Thermometer } from "lucide-react";
+import TimeGraph from './TimeGraph';
 
 interface TemperatureDisplayProps {
   value: number;
+  history?: Array<{time: string; value: number}>;
+  showGraph?: boolean;
 }
 
-const TemperatureDisplay: React.FC<TemperatureDisplayProps> = ({ value }) => {
+const TemperatureDisplay: React.FC<TemperatureDisplayProps> = ({ value, history = [], showGraph = false }) => {
   // Temperature range for display (Celsius)
   const tempMin = 10;
   const tempMax = 35;
@@ -94,6 +97,18 @@ const TemperatureDisplay: React.FC<TemperatureDisplayProps> = ({ value }) => {
           <p>Target: 18-26°C</p>
           <p>Last updated: {new Date().toLocaleTimeString()}</p>
         </div>
+
+        {showGraph && history.length > 0 && (
+          <TimeGraph 
+            data={history} 
+            dataKey="value" 
+            color="#ff7300" 
+            unit="°C"
+            name="Temperature" 
+            min={tempMin}
+            max={tempMax}
+          />
+        )}
       </CardContent>
     </Card>
   );
