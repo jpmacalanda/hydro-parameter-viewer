@@ -1,5 +1,13 @@
+
 // Serial service to connect with Arduino via Web Serial API
-import { SerialData, DataCallback, SerialPortInterface, RawMessageCallback, ErrorCallback } from './types/serial.types';
+import { 
+  SerialData, 
+  DataCallback, 
+  SerialPortInterface, 
+  RawMessageCallback, 
+  ErrorCallback, 
+  SerialPortInfo 
+} from './types/serial.types';
 import webSocketService from './WebSocketService';
 import mockDataService from './MockDataService';
 import serialReader from './SerialReader';
