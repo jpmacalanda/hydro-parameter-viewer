@@ -1,28 +1,26 @@
+
 import React, { useState, useEffect } from 'react';
-import PHDisplay from './PHDisplay';
-import TemperatureDisplay from './TemperatureDisplay';
-import WaterLevelDisplay from './WaterLevelDisplay';
-import TDSDisplay from './TDSDisplay';
-import ThresholdSettings from './ThresholdSettings';
-import CalibrationSettings from './CalibrationSettings';
-import StatisticsView from './StatisticsView';
-import ConnectionControl from './ConnectionControl';
-import serialService from '@/services/SerialService';
-import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
-import { Switch } from "@/components/ui/switch";
-import { Label } from "@/components/ui/label";
 import { Tabs, TabsContent, TabsList, TabsTrigger } from "@/components/ui/tabs";
 import { toast } from "sonner";
 import { Activity, Gauge, Settings } from "lucide-react";
+import serialService from '@/services/SerialService';
+import ConnectionControl from './ConnectionControl';
+import ThresholdSettings from './ThresholdSettings';
+import CalibrationSettings from './CalibrationSettings';
+import StatisticsView from './StatisticsView';
+import MonitoringPanel from './dashboard/MonitoringPanel';
+import SystemInfoPanel from './dashboard/SystemInfoPanel';
+import LocalStorageService from './dashboard/LocalStorageService';
+import { HydroParams, Thresholds, Calibration } from './dashboard/types';
 
-const initialParams = {
+const initialParams: HydroParams = {
   ph: 6.0,
   temperature: 23.0,
   waterLevel: 'medium' as 'low' | 'medium' | 'high',
   tds: 650
 };
 
-const initialThresholds = {
+const initialThresholds: Thresholds = {
   phMin: 5.5,
   phMax: 6.5,
   temperatureMin: 18,
@@ -31,7 +29,7 @@ const initialThresholds = {
   tdsMax: 1000
 };
 
-const initialCalibration = {
+const initialCalibration: Calibration = {
   phCalibrationConstant: 1.0,
   tdsCalibrationFactor: 1.0
 };
@@ -90,41 +88,30 @@ const Dashboard: React.FC = () => {
     setConnected(true);
   };
   
-  const handleSaveThresholds = (newThresholds: typeof thresholds) => {
+  const handleSaveThresholds = (newThresholds: Thresholds) => {
     setThresholds(newThresholds);
     
-    try {
-      localStorage.setItem('hydroponics-thresholds', JSON.stringify(newThresholds));
+    if (LocalStorageService.saveThresholds(newThresholds)) {
       toast.success("Threshold settings saved successfully");
-    } catch (error) {
-      console.error('Failed to save thresholds to localStorage', error);
+    } else {
       toast.error("Failed to save threshold settings");
     }
   };
   
-  const handleSaveCalibration = (newCalibration: typeof calibration) => {
+  const handleSaveCalibration = (newCalibration: Calibration) => {
     setCalibration(newCalibration);
-    
-    try {
-      localStorage.setItem('hydroponics-calibration', JSON.stringify(newCalibration));
-    } catch (error) {
-      console.error('Failed to save calibration to localStorage', error);
-    }
+    LocalStorageService.saveCalibration(newCalibration);
   };
   
   useEffect(() => {
-    try {
-      const savedThresholds = localStorage.getItem('hydroponics-thresholds');
-      if (savedThresholds) {
-        setThresholds(JSON.parse(savedThresholds));
-      }
-      
-      const savedCalibration = localStorage.getItem('hydroponics-calibration');
-      if (savedCalibration) {
-        setCalibration(JSON.parse(savedCalibration));
-      }
-    } catch (error) {
-      console.error('Failed to load settings from localStorage', error);
+    const savedThresholds = LocalStorageService.loadThresholds();
+    if (savedThresholds) {
+      setThresholds(savedThresholds);
+    }
+    
+    const savedCalibration = LocalStorageService.loadCalibration();
+    if (savedCalibration) {
+      setCalibration(savedCalibration);
     }
   }, []);
   
@@ -160,40 +147,16 @@ const Dashboard: React.FC = () => {
           </TabsTrigger>
         </TabsList>
         
-        <TabsContent value="monitor" className="space-y-4">
-          <div className="flex items-center space-x-2 mb-4">
-            <Switch 
-              id="show-graphs" 
-              checked={showGraphs} 
-              onCheckedChange={setShowGraphs}
-            />
-            <Label htmlFor="show-graphs">Show Historical Graphs</Label>
-          </div>
-          
-          <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-2 gap-6">
-            <PHDisplay 
-              value={params.ph} 
-              history={phHistory} 
-              showGraph={showGraphs} 
-              optimalMin={thresholds.phMin}
-              optimalMax={thresholds.phMax}
-            />
-            <TemperatureDisplay 
-              value={params.temperature} 
-              history={tempHistory} 
-              showGraph={showGraphs} 
-              optimalMin={thresholds.temperatureMin}
-              optimalMax={thresholds.temperatureMax}
-            />
-            <WaterLevelDisplay level={params.waterLevel} />
-            <TDSDisplay 
-              value={params.tds} 
-              history={tdsHistory} 
-              showGraph={showGraphs} 
-              optimalMin={thresholds.tdsMin}
-              optimalMax={thresholds.tdsMax}
-            />
-          </div>
+        <TabsContent value="monitor">
+          <MonitoringPanel 
+            params={params}
+            phHistory={phHistory}
+            tempHistory={tempHistory}
+            tdsHistory={tdsHistory}
+            showGraphs={showGraphs}
+            setShowGraphs={setShowGraphs}
+            thresholds={thresholds}
+          />
         </TabsContent>
         
         <TabsContent value="settings">
@@ -220,40 +183,11 @@ const Dashboard: React.FC = () => {
         </TabsContent>
       </Tabs>
       
-      <Card className="mt-6">
-        <CardHeader>
-          <CardTitle>System Information</CardTitle>
-        </CardHeader>
-        <CardContent>
-          <div className="grid grid-cols-1 sm:grid-cols-2 gap-4">
-            <div>
-              <h3 className="font-medium text-sm text-gray-500">Connection Status</h3>
-              <p className="text-lg">{connected ? 'Connected' : 'Disconnected'}</p>
-            </div>
-            <div>
-              <h3 className="font-medium text-sm text-gray-500">Last Update</h3>
-              <p className="text-lg">
-                {lastUpdate ? lastUpdate.toLocaleTimeString() : 'No data received'}
-              </p>
-            </div>
-            <div>
-              <h3 className="font-medium text-sm text-gray-500">Platform</h3>
-              <p className="text-lg">Raspberry Pi</p>
-            </div>
-            <div>
-              <h3 className="font-medium text-sm text-gray-500">Data Source</h3>
-              <p className="text-lg">Arduino via Serial</p>
-            </div>
-          </div>
-          
-          <div className="mt-4 text-sm text-gray-600">
-            <p className="mb-1">• pH: Measures the acidity/alkalinity of your solution (optimal range: {thresholds.phMin}-{thresholds.phMax})</p>
-            <p className="mb-1">• Temperature: Water temperature in Celsius (optimal range: {thresholds.temperatureMin}-{thresholds.temperatureMax}°C)</p>
-            <p className="mb-1">• Water Level: Current reservoir water level</p>
-            <p className="mb-1">• TDS: Total Dissolved Solids - indicates nutrient concentration (optimal: {thresholds.tdsMin}-{thresholds.tdsMax} PPM)</p>
-          </div>
-        </CardContent>
-      </Card>
+      <SystemInfoPanel 
+        connected={connected}
+        lastUpdate={lastUpdate}
+        thresholds={thresholds}
+      />
     </div>
   );
 };
