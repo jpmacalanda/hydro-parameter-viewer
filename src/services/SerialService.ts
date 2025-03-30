@@ -36,9 +36,9 @@ class SerialService {
   // Connect to the system - this now just means start using log parsing
   async connect(): Promise<boolean> {
     try {
-      console.log("[DOCKER-LOG][SerialService] Connecting to serial monitor logs");
+      console.log("[DOCKER-LOG][SerialService] Connecting to Arduino via serial monitor logs");
       
-      console.log("[DOCKER-LOG][SerialService] Using real data from logs");
+      console.log("[DOCKER-LOG][SerialService] Using real data from Arduino");
       
       // Set up log parser to get real data from logs
       console.log("[DOCKER-LOG][SerialService] Setting up log parser to use real data");

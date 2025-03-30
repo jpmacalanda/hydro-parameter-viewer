@@ -16,22 +16,10 @@ logger = logging.getLogger("hydroponics_server")
 ser = None
 
 def initialize_serial():
-    """Initialize the serial connection or fall back to sample data mode"""
+    """Initialize the serial connection"""
     global ser
     
-    # First check if serial monitor is active - if so, use logs from that
-    try:
-        result = subprocess.run(['docker', 'ps', '--format', '{{.Names}}'], capture_output=True, text=True)
-        running_containers = result.stdout.strip().split('\n')
-        serial_monitor_active = 'hydroponics-serial-monitor' in running_containers
-        
-        if serial_monitor_active:
-            logger.warning("Serial Monitor container is active - Using log data")
-            return None
-    except Exception as e:
-        logger.error(f"Error checking container status: {e}")
-    
-    # First check if the serial port device exists
+    # Check if the serial port device exists
     if not os.path.exists(settings.SERIAL_PORT):
         logger.error(f"Serial port {settings.SERIAL_PORT} does not exist")
         logger.error("Check if Arduino is connected and using the correct port")
@@ -47,7 +35,7 @@ def initialize_serial():
         if any("serial_monitor.py" in cmd for cmd in cmds):
             logger.info("Port is being used by our serial_monitor.py - this is fine")
         else:
-            logger.warning("Serial port is busy with other processes, falling back to log data mode")
+            logger.warning("Serial port is busy with other processes")
             return None
         
     # Try connecting to the serial port with retries
@@ -74,8 +62,7 @@ def initialize_serial():
                 logger.info(f"Retrying in {retry_delay} seconds...")
                 time.sleep(retry_delay)
             else:
-                logger.error(f"Maximum retries ({max_retries}) reached. Falling back to sample data.")
-                logger.info("Falling back to sample data mode from logs")
+                logger.error(f"Maximum retries ({max_retries}) reached. Unable to connect to Arduino.")
                 logger.error(f"CHECK IF:")
                 logger.error(f"- Arduino is connected to {settings.SERIAL_PORT}")
                 logger.error(f"- You have permission to access {settings.SERIAL_PORT} (try: sudo chmod 666 {settings.SERIAL_PORT})")
@@ -84,42 +71,22 @@ def initialize_serial():
                 return None
         except Exception as e:
             logger.error(f"Unexpected error when connecting to serial port: {e}")
-            logger.info("Falling back to sample data mode from logs")
             return None
-
-async def use_sample_data():
-    """Send consistent sample data when no real data is available"""
-    logger.info("Using sample data from logs")
-    
-    # Sample data to use when no real data is available
-    sample_values = [
-        {"ph": 6.5, "temperature": 23.0, "waterLevel": "MEDIUM", "tds": 650},
-        {"ph": 6.6, "temperature": 23.2, "waterLevel": "MEDIUM", "tds": 655},
-        {"ph": 6.7, "temperature": 23.1, "waterLevel": "MEDIUM", "tds": 660}
-    ]
-    
-    index = 0
-    while True:
-        # Use a consistent pattern of sample data
-        data = sample_values[index % len(sample_values)]
-        
-        # Convert waterLevel to lowercase to match expected format
-        data["waterLevel"] = data["waterLevel"].lower()
-        
-        logger.info(f"Sample data: {json.dumps(data)}")
-        
-        index += 1
-        await asyncio.sleep(2)  # Send data every 2 seconds
 
 async def read_serial():
     """Read data from the serial port and process it"""
     global ser
     
-    # Use sample data if no serial connection
+    # If no serial connection is available, just wait indefinitely
     if not ser:
-        logger.info("Starting sample data stream from logs")
-        await use_sample_data()
-        return
+        logger.error("No serial connection available. Make sure the Arduino is properly connected.")
+        # Wait indefinitely but periodically check if a connection becomes available
+        while True:
+            ser = initialize_serial()
+            if ser:
+                logger.info("Serial connection established, proceeding with data reading")
+                break
+            await asyncio.sleep(30)  # Check every 30 seconds
     
     buffer = ""
     last_message_time = time.time()
@@ -144,9 +111,15 @@ async def read_serial():
                     logger.info("Successfully reconnected to serial port")
                     reconnect_attempts = 0
             else:
-                logger.error("Maximum reconnection attempts reached. Switching to sample data.")
-                await use_sample_data()
-                return
+                logger.error("Maximum reconnection attempts reached. Unable to connect to Arduino.")
+                # Continuously try to reconnect after max attempts reached, but less frequently
+                ser = initialize_serial()
+                if ser:
+                    logger.info("Serial connection re-established after extended attempts")
+                    reconnect_attempts = 0
+                else:
+                    await asyncio.sleep(60)  # Wait a full minute before trying again
+                    continue
         
         try:
             if ser and ser.in_waiting > 0:

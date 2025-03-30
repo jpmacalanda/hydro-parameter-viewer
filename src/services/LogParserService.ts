@@ -90,7 +90,7 @@ class LogParserService {
     } catch (error) {
       console.error('[DOCKER-LOG][LogParserService] Error fetching logs:', error);
       toast.error('Failed to fetch sensor data logs', {
-        description: 'Check if the logs server is running'
+        description: 'Check if the logs server is running and Arduino is connected'
       });
     }
   }

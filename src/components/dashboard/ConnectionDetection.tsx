@@ -20,7 +20,7 @@ const ConnectionDetection: React.FC<ConnectionDetectionProps> = ({
       addNotification(
         'info', 
         'Remote Access Detected', 
-        'You are accessing this dashboard from a different device than the one hosting it. The system will automatically use the logs to access the Arduino data.'
+        'You are accessing this dashboard from a different device than the one hosting it.'
       );
     }
     
