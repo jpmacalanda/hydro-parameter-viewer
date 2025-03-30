@@ -11,12 +11,15 @@ COPY --from=builder /app/dist /usr/share/nginx/html
 COPY docker/nginx.conf /etc/nginx/conf.d/default.conf
 
 # Remove the default nginx configuration
-RUN rm -f /etc/nginx/conf.d/default.conf
+RUN rm -f /etc/nginx/conf.d/default.conf.default
 
-# Create SSL directory
-RUN mkdir -p /etc/nginx/ssl
+# Install tools for debugging
+RUN apk add --no-cache curl openssl
 
-# Don't generate certificates in the Dockerfile, they'll be mounted from host
+# Create SSL directory with proper permissions
+RUN mkdir -p /etc/nginx/ssl && \
+    chmod 755 /etc/nginx/ssl
+
 # Add startup script to check for certificates
 COPY docker-entrypoint.sh /docker-entrypoint.sh
 RUN chmod +x /docker-entrypoint.sh

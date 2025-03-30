@@ -20,7 +20,7 @@ mkdir -p ./ssl
 # Generate certificates
 openssl req -x509 -nodes -days 365 -newkey rsa:2048 \
   -keyout ./ssl/nginx.key -out ./ssl/nginx.crt \
-  -subj "/C=US/ST=State/L=City/O=Hydroponics/CN=192.168.1.34" \
+  -subj "/C=US/ST=State/L=City/O=Hydroponics/CN=localhost" \
   -addext "subjectAltName = IP:192.168.1.34,IP:127.0.0.1,DNS:localhost"
 
 # Set proper permissions
@@ -52,30 +52,76 @@ docker-compose down
 docker-compose up -d --build
 ```
 
-## Running Containers Individually
+## Common Issues and Solutions
 
-### Web Application Container
+### Container Keeps Restarting
 
-1. **Build the container**:
+If your container keeps restarting with exit code 255:
+
+1. **Check container logs**:
 ```bash
-docker build -t hydroponics-monitor .
+docker logs hydroponics-webapp
 ```
 
-2. **Run the container**:
+2. **Check for NGINX configuration errors**:
 ```bash
-docker run -d -p 80:80 -p 443:443 -v $(pwd)/ssl:/etc/nginx/ssl --name hydroponics-app hydroponics-monitor
+docker exec hydroponics-webapp nginx -t
 ```
 
-### WebSocket Server Container
-
-1. **Build the container**:
+3. **Fix SSL permissions**:
 ```bash
-docker build -f Dockerfile.server -t hydroponics-server .
+docker exec hydroponics-webapp sh -c "chmod -R 755 /etc/nginx/ssl && chmod 644 /etc/nginx/ssl/nginx.crt && chmod 640 /etc/nginx/ssl/nginx.key"
 ```
 
-2. **Run the container**:
+4. **Regenerate SSL certificates**:
+Inside the container:
 ```bash
-docker run -d --device=/dev/ttyUSB0 -p 8081:8081 -v $(pwd)/ssl:/etc/nginx/ssl -e USE_SSL=true --name hydroponics-ws hydroponics-server
+docker exec -it hydroponics-webapp sh
+
+# Then inside the container:
+cd /etc/nginx/ssl
+rm -f nginx.crt nginx.key
+openssl req -x509 -nodes -days 365 -newkey rsa:2048 \
+  -keyout nginx.key -out nginx.crt \
+  -subj "/C=US/ST=State/L=City/O=Hydroponics/CN=localhost" \
+  -addext "subjectAltName = IP:192.168.1.34,IP:127.0.0.1,DNS:localhost"
+chmod 644 nginx.crt
+chmod 640 nginx.key
+exit
+
+# Restart the container
+docker restart hydroponics-webapp
+```
+
+5. **Check if ports are already in use**:
+```bash
+sudo netstat -tulpn | grep -E '80|443|8081'
+```
+
+### WebSocket Connection Issues
+
+If you're having trouble with WebSocket connections:
+
+1. **Check WebSocket server logs**:
+```bash
+docker logs hydroponics-websocket
+```
+
+2. **Test WebSocket connectivity**:
+```bash
+# Install wscat if needed:
+npm install -g wscat
+
+# Connect to WebSocket (HTTP):
+wscat -c ws://192.168.1.34:8081
+
+# Connect to WebSocket (HTTPS):
+wscat -c wss://192.168.1.34/ws
+```
+
+3. **Verify SSL certificates are being used properly**:
+```bash
+docker exec hydroponics-websocket ls -la /etc/nginx/ssl/
 ```
 
 ## Accessing the Application
@@ -103,7 +149,7 @@ Note: When accessing via HTTPS, your browser will show a security warning about 
    # Check what's causing the restart
    docker logs hydroponics-webapp
    
-   # If it's permission-related, fix permissions on SSL directory
+   # Fix permissions on SSL directory
    chmod -R 755 ./ssl
    chmod 644 ./ssl/nginx.crt
    chmod 640 ./ssl/nginx.key
@@ -138,7 +184,7 @@ Note: When accessing via HTTPS, your browser will show a security warning about 
    
    openssl req -x509 -nodes -days 365 -newkey rsa:2048 \
      -keyout ./ssl/nginx.key -out ./ssl/nginx.crt \
-     -subj "/C=US/ST=State/L=City/O=Hydroponics/CN=192.168.1.34" \
+     -subj "/C=US/ST=State/L=City/O=Hydroponics/CN=localhost" \
      -addext "subjectAltName = IP:192.168.1.34,IP:127.0.0.1,DNS:localhost"
    ```
 
@@ -166,7 +212,7 @@ Note: When accessing via HTTPS, your browser will show a security warning about 
    docker exec hydroponics-websocket ls -l /dev/ttyUSB0
    ```
 
-### Container Restart
+### Complete Reset
 
 If all else fails, completely recreate containers:
 

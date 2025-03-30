@@ -20,6 +20,13 @@ MOCK_DATA = os.environ.get('MOCK_DATA', 'false').lower() == 'true'
 SSL_CERT_PATH = "/etc/nginx/ssl/nginx.crt"
 SSL_KEY_PATH = "/etc/nginx/ssl/nginx.key"
 
+print(f"Starting hydroponics server with configuration:")
+print(f"- Serial port: {SERIAL_PORT}")
+print(f"- Baud rate: {BAUD_RATE}")
+print(f"- WebSocket port: {WS_PORT}")
+print(f"- SSL enabled: {USE_SSL}")
+print(f"- Mock data: {MOCK_DATA}")
+
 # Initialize serial connection
 ser = None
 if not MOCK_DATA:
@@ -40,6 +47,11 @@ async def handle_client(websocket, path):
     print(f"Client connected: {websocket.remote_address}")
     connected_clients.add(websocket)
     try:
+        # Handle health check requests
+        if path == "/health":
+            await websocket.send("healthy")
+            return
+            
         await websocket.wait_closed()
     finally:
         connected_clients.remove(websocket)
@@ -116,11 +128,19 @@ async def read_serial():
                 print(f"Error reading/processing serial data: {e}")
         await asyncio.sleep(1)
 
+async def health_server(websocket, path):
+    """Simple health check endpoint"""
+    if path == "/health":
+        await websocket.send("healthy")
+    else:
+        # Forward to the main handler for normal WebSocket connections
+        await handle_client(websocket, path)
+
 def check_ssl_certificates():
     if USE_SSL:
         if not os.path.exists(SSL_CERT_PATH) or not os.path.exists(SSL_KEY_PATH):
-            print(f"ERROR: SSL certificates not found at {SSL_CERT_PATH} or {SSL_KEY_PATH}")
-            print("Make sure to run generate-ssl-certs.sh script first")
+            print(f"WARNING: SSL certificates not found at {SSL_CERT_PATH} or {SSL_KEY_PATH}")
+            print("The container will continue starting, and certificates will be generated if needed.")
             return False
         print(f"Found SSL certificates at: {SSL_CERT_PATH} and {SSL_KEY_PATH}")
         return True
@@ -130,22 +150,22 @@ async def main():
     ssl_context = None
     
     if USE_SSL:
-        if not check_ssl_certificates():
-            print("SSL configuration failed, exiting...")
-            sys.exit(1)
-            
         print("Setting up secure WebSocket server with SSL")
         ssl_context = ssl.SSLContext(ssl.PROTOCOL_TLS_SERVER)
         try:
-            ssl_context.load_cert_chain(SSL_CERT_PATH, SSL_KEY_PATH)
-            print("SSL certificates loaded successfully")
+            if os.path.exists(SSL_CERT_PATH) and os.path.exists(SSL_KEY_PATH):
+                ssl_context.load_cert_chain(SSL_CERT_PATH, SSL_KEY_PATH)
+                print("SSL certificates loaded successfully")
+            else:
+                print("SSL certificates not found, running without SSL")
+                ssl_context = None
         except Exception as e:
             print(f"Error loading SSL certificates: {e}")
             print("Falling back to non-secure WebSocket")
             ssl_context = None
     
     server = await websockets.serve(
-        handle_client, 
+        health_server,  # Use the health-aware handler
         "0.0.0.0", 
         WS_PORT, 
         ssl=ssl_context
@@ -156,4 +176,10 @@ async def main():
     await server.wait_closed()
 
 if __name__ == "__main__":
-    asyncio.run(main())
+    try:
+        asyncio.run(main())
+    except KeyboardInterrupt:
+        print("Server shutting down due to keyboard interrupt.")
+    except Exception as e:
+        print(f"Server error: {e}")
+        sys.exit(1)
