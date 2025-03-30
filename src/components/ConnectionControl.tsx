@@ -24,9 +24,12 @@ const ConnectionControl: React.FC<ConnectionControlProps> = ({
   const [isError, setIsError] = useState(false);
   
   useEffect(() => {
+    console.log("ConnectionControl: component mounted");
+    
     const handleArduinoError = (event: Event) => {
       const customEvent = event as CustomEvent;
       setIsError(true);
+      console.log("ConnectionControl: Arduino error event received:", customEvent.detail);
       toast.error(customEvent.detail.message, {
         description: "Check serial monitor for more details",
         icon: <Zap className="h-4 w-4" />,
@@ -38,6 +41,7 @@ const ConnectionControl: React.FC<ConnectionControlProps> = ({
     const handleConnectionSuccess = (event: Event) => {
       const customEvent = event as CustomEvent;
       setIsError(false);
+      console.log("ConnectionControl: Connection success event received:", customEvent.detail);
       toast.success(customEvent.detail.message, {
         description: customEvent.detail.description,
       });
@@ -48,25 +52,34 @@ const ConnectionControl: React.FC<ConnectionControlProps> = ({
     return () => {
       document.removeEventListener('arduino-error', handleArduinoError);
       document.removeEventListener('connection-success', handleConnectionSuccess);
+      console.log("ConnectionControl: component unmounted, removed event listeners");
     };
   }, []);
   
+  // Log props changes
+  useEffect(() => {
+    console.log("ConnectionControl: Props updated - isConnected:", isConnected, "dataReceived:", dataReceived);
+  }, [isConnected, dataReceived]);
+  
   const handleConnect = async () => {
     try {
+      console.log("ConnectionControl: handleConnect called");
       setConnecting(true);
       setIsError(false);
       
-      console.log("Attempting connection...");
+      console.log("ConnectionControl: Attempting connection...");
       
       let success = false;
       success = await serialService.connect();
       
-      console.log("Connection result:", success);
+      console.log("ConnectionControl: Connection result:", success);
       
       if (success) {
         setUsingMockData(serialService.isMockData);
+        console.log("ConnectionControl: Using mock data:", serialService.isMockData);
         
         if (!serialService.isMockData) {
+          console.log("ConnectionControl: Dispatching connection success event");
           const event = new CustomEvent('connection-success', { 
             detail: { 
               message: "Connected to Arduino", 
@@ -76,33 +89,38 @@ const ConnectionControl: React.FC<ConnectionControlProps> = ({
           document.dispatchEvent(event);
         }
         
+        console.log("ConnectionControl: Calling onConnect callback");
         onConnect();
       } else {
+        console.log("ConnectionControl: Connection failed");
         setIsError(true);
         toast.error("Failed to connect", {
           description: "Could not establish connection to Arduino"
         });
       }
     } catch (error) {
-      console.error("Connection error:", error);
+      console.error("ConnectionControl: Connection error:", error);
       setIsError(true);
       toast.error("Connection error", {
         description: "An error occurred while connecting to the device"
       });
     } finally {
       setConnecting(false);
+      console.log("ConnectionControl: Connect process completed");
     }
   };
   
   const handleDisconnect = async () => {
     try {
+      console.log("ConnectionControl: handleDisconnect called");
       await serialService.disconnect();
       toast.info("Disconnected from device");
       setUsingMockData(false);
       setIsError(false);
+      console.log("ConnectionControl: Calling onDisconnect callback");
       onDisconnect();
     } catch (error) {
-      console.error("Disconnection error:", error);
+      console.error("ConnectionControl: Disconnection error:", error);
     }
   };
   

@@ -1,4 +1,3 @@
-
 import React, { useEffect, useState } from 'react';
 import MonitoringPanel from './dashboard/MonitoringPanel';
 import SystemInfoPanel from './dashboard/SystemInfoPanel';
@@ -71,34 +70,51 @@ const DashboardContent: React.FC<DashboardProps> = ({
   const { addNotification } = useNotifications();
 
   useEffect(() => {
+    console.log("Dashboard: Setting up serial data listeners");
+    
     serialService.onData((data) => {
+      console.log("Dashboard: Received data from serial service:", data);
       setLastUpdate(new Date());
       setLastDataReceived(new Date());
       
       // Pass the received data up to the parent
+      console.log("Dashboard: Forwarding data to parent component");
       onSensorData(data);
     });
 
     serialService.onError((error) => {
+      console.error("Dashboard: Serial service error:", error);
       setConnected(false);
       const errorMessage = error instanceof Error ? error.message : String(error);
       addNotification('error', 'Connection Error', errorMessage);
     });
 
     setConnected(!serialService.isMockData);
+    console.log("Dashboard: Connection status:", !serialService.isMockData);
     
     const hostname = window.location.hostname;
     const isRemote = hostname !== 'localhost' && hostname !== '127.0.0.1';
     setIsRemoteAccess(isRemote);
+    console.log("Dashboard: Remote access:", isRemote);
 
     return () => {
       // Cleanup function (empty since the service handles this)
+      console.log("Dashboard: Cleanup effect");
     };
   }, [addNotification, onSensorData]);
+
+  useEffect(() => {
+    console.log("Dashboard: Current sensor data updated:", sensorData);
+  }, [sensorData]);
+
+  useEffect(() => {
+    console.log("Dashboard: Data history updated, length:", dataHistory.length);
+  }, [dataHistory]);
 
   const handleConnect = () => {
     setConnected(true);
     addNotification('success', 'Connected', 'Successfully connected to the device');
+    console.log("Dashboard: handleConnect called, set connected to true");
   };
 
   return (

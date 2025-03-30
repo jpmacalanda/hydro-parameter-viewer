@@ -54,14 +54,17 @@ class LogParserService {
       // In a production environment, fetch logs from an API endpoint that serves serial monitor logs
       // For this demo, we'll generate some mock logs
       const logs = this.generateMockSerialLogs();
+      console.log("Fetched raw logs:", logs.substring(0, 150) + "...");
       
       // Parse the logs for sensor data
       const sensorData = this.extractSensorDataFromLogs(logs);
+      console.log("Extracted sensor data:", sensorData);
       
       // If we found valid sensor data, notify callbacks
       if (sensorData.length > 0) {
         // Get the most recent reading
         const latestData = sensorData[sensorData.length - 1];
+        console.log("Latest parsed data:", latestData);
         
         // Skip if it's the same data we've already processed
         if (this.lastReceivedData && 
@@ -69,14 +72,18 @@ class LogParserService {
             this.lastReceivedData.temperature === latestData.temperature &&
             this.lastReceivedData.waterLevel === latestData.waterLevel &&
             this.lastReceivedData.tds === latestData.tds) {
+          console.log("Skipping duplicate data");
           return;
         }
         
         // Store this data as the last received
         this.lastReceivedData = latestData;
+        console.log("Updating latest data:", latestData);
         
         // Update listeners
         this.notifyCallbacks(latestData);
+      } else {
+        console.log("No valid sensor data found in logs");
       }
     } catch (error) {
       console.error('Error fetching logs:', error);
@@ -93,9 +100,12 @@ class LogParserService {
     const results: SerialData[] = [];
     const lines = logs.split('\n');
     
+    console.log(`Processing ${lines.length} log lines`);
+    
     for (const line of lines) {
       // Look for lines that contain sensor data format: pH:6.8,temp:23.5,water:medium,tds:650
       if (line.includes('pH:') && line.includes('temp:') && line.includes('water:') && line.includes('tds:')) {
+        console.log("Found potential data line:", line);
         try {
           // Extract timestamp to avoid processing the same data twice
           const timestampMatch = line.match(/^(.*?) - INFO/);
@@ -103,6 +113,7 @@ class LogParserService {
           
           // Skip if we've already processed this timestamp
           if (timestamp && timestamp === this.lastProcessedTimestamp) {
+            console.log("Skipping already processed timestamp:", timestamp);
             continue;
           }
           
@@ -115,8 +126,10 @@ class LogParserService {
           const dataMatch = line.match(/\{([^}]+)\}/);
           if (dataMatch) {
             const dataString = `{${dataMatch[1]}}`;
+            console.log("Extracted JSON data:", dataString);
             // Parse the JSON data
             const data = JSON.parse(dataString);
+            console.log("Parsed JSON:", data);
             
             // Convert data to proper SerialData format
             const serialData: SerialData = {
@@ -126,6 +139,7 @@ class LogParserService {
               tds: typeof data.tds === 'number' ? data.tds : parseInt(data.tds)
             };
             
+            console.log("Converted to SerialData:", serialData);
             results.push(serialData);
           } else {
             // Try to parse raw format: pH:6.8,temp:23.5,water:medium,tds:650
@@ -133,6 +147,7 @@ class LogParserService {
             const match = line.match(dataRegex);
             
             if (match) {
+              console.log("Matched raw format data:", match);
               const serialData: SerialData = {
                 ph: parseFloat(match[1]),
                 temperature: parseFloat(match[2]),
@@ -140,6 +155,7 @@ class LogParserService {
                 tds: parseInt(match[4])
               };
               
+              console.log("Converted raw format to SerialData:", serialData);
               results.push(serialData);
             }
           }
@@ -191,6 +207,7 @@ ${now} - INFO - Waiting for next data...`;
    * Notify all callbacks with new sensor data
    */
   private notifyCallbacks(data: SerialData): void {
+    console.log("Notifying all callbacks with data:", data);
     this.callbacks.forEach((callback) => callback(data));
   }
 }
