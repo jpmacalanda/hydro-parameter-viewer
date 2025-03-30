@@ -1,3 +1,4 @@
+
 type DataCallback = (data: {
   ph: number;
   temperature: number;
@@ -5,12 +6,17 @@ type DataCallback = (data: {
   tds: number;
 }) => void;
 
+type ErrorCallback = (error: Error) => void;
+
 class WebSocketService {
   private ws: WebSocket | null = null;
   private callbacks: DataCallback[] = [];
+  private errorCallbacks: ErrorCallback[] = [];
   private reconnectAttempts = 0;
   private maxReconnectAttempts = 5;
   private isConnected = false;
+  private lastMessageTime = 0;
+  private healthCheckInterval: ReturnType<typeof setInterval> | null = null;
   
   connect(serverUrl: string = this.getDefaultWebSocketUrl()) {
     console.log(`Attempting WebSocket connection to: ${serverUrl}`);
@@ -22,10 +28,17 @@ class WebSocketService {
         console.log('WebSocket connection established successfully');
         this.isConnected = true;
         this.reconnectAttempts = 0;
+        this.lastMessageTime = Date.now();
+        
+        // Set up health check interval
+        this.startHealthCheck();
       };
       
       this.ws.onmessage = (event) => {
         try {
+          // Update last message time for health check
+          this.lastMessageTime = Date.now();
+          
           if (event.data === "healthy") {
             console.log("Received health check response");
             return;
@@ -35,12 +48,14 @@ class WebSocketService {
           this.callbacks.forEach(callback => callback(data));
         } catch (error) {
           console.error('Error parsing WebSocket data:', error);
+          this.notifyError(new Error('Invalid data format from server'));
         }
       };
       
       this.ws.onclose = (event) => {
         console.log(`WebSocket connection closed. Code: ${event.code}, Reason: ${event.reason}`);
         this.isConnected = false;
+        this.stopHealthCheck();
         
         if (this.reconnectAttempts < this.maxReconnectAttempts) {
           const delay = Math.min(1000 * Math.pow(2, this.reconnectAttempts), 10000);
@@ -52,11 +67,13 @@ class WebSocketService {
           }, delay);
         } else {
           console.error('Maximum reconnection attempts reached.');
+          this.notifyError(new Error('Failed to connect to WebSocket server after multiple attempts'));
         }
       };
       
       this.ws.onerror = (error) => {
         console.error('WebSocket error:', error);
+        this.notifyError(new Error('WebSocket connection error'));
         
         // Try fallback to non-secure connection if secure connection fails
         if (serverUrl.startsWith('wss:') && this.reconnectAttempts === 0) {
@@ -77,6 +94,7 @@ class WebSocketService {
       return true;
     } catch (error) {
       console.error('Error creating WebSocket:', error);
+      this.notifyError(new Error('Failed to create WebSocket connection'));
       return false;
     }
   }
@@ -117,14 +135,61 @@ class WebSocketService {
     this.callbacks.push(callback);
   }
   
+  onError(callback: ErrorCallback) {
+    this.errorCallbacks.push(callback);
+  }
+  
+  private notifyError(error: Error) {
+    this.errorCallbacks.forEach(callback => callback(error));
+    
+    // Also dispatch a custom event
+    const event = new CustomEvent('websocket-error', { 
+      detail: { message: error.message, error } 
+    });
+    document.dispatchEvent(event);
+  }
+  
   disconnect() {
+    this.stopHealthCheck();
+    
     if (this.ws) {
       this.ws.close();
       this.ws = null;
       this.isConnected = false;
     }
     this.callbacks = [];
+    this.errorCallbacks = [];
     this.reconnectAttempts = 0;
+  }
+  
+  private startHealthCheck() {
+    this.stopHealthCheck(); // Clear any existing interval
+    this.lastMessageTime = Date.now();
+    
+    // Check every 5 seconds if we've received any data recently
+    this.healthCheckInterval = setInterval(() => {
+      const now = Date.now();
+      // If no message for 15 seconds, consider connection stale
+      if (now - this.lastMessageTime > 15000) {
+        console.warn('No data received from WebSocket in the last 15 seconds');
+        this.notifyError(new Error('No data received from server (timeout)'));
+        
+        // If the connection appears stale but WebSocket still shows as connected,
+        // force a reconnection
+        if (this.isConnected && this.ws && this.ws.readyState === WebSocket.OPEN) {
+          console.log('Forcing WebSocket reconnection due to stale connection');
+          this.ws.close();
+          // The onclose handler will trigger a reconnection
+        }
+      }
+    }, 5000);
+  }
+  
+  private stopHealthCheck() {
+    if (this.healthCheckInterval) {
+      clearInterval(this.healthCheckInterval);
+      this.healthCheckInterval = null;
+    }
   }
 }
 

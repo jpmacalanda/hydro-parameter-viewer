@@ -1,4 +1,3 @@
-
 // Serial service to connect with Arduino via Web Serial API
 import { 
   SerialData, 
@@ -153,11 +152,23 @@ class SerialService {
         // Try WebSocket connection first for remote access
         try {
           const wsConnected = webSocketService.connect();
+          
+          // Register data callback
           webSocketService.onData((data) => {
             this.callbacks.forEach(callback => callback(data));
           });
+          
+          // Register error callback
+          webSocketService.onError((error) => {
+            this.handleError(error);
+          });
+          
           this.isConnected = true;
           this.usingWebSocket = true;
+          
+          // Set up a health check timer to ensure we're actually getting data
+          this.setupDataReceiptCheck();
+          
           console.log("Successfully connected via WebSocket for remote access");
           return true;
         } catch (wsError) {
@@ -304,14 +315,73 @@ class SerialService {
     }
   }
   
+  // Set up a data receipt check to ensure we're actually getting data
+  private dataCheckTimer: ReturnType<typeof setTimeout> | null = null;
+  private hasReceivedData = false;
+  
+  private setupDataReceiptCheck() {
+    // Clear any existing timer
+    if (this.dataCheckTimer) {
+      clearTimeout(this.dataCheckTimer);
+      this.dataCheckTimer = null;
+    }
+    
+    this.hasReceivedData = false;
+    
+    // Set a flag when we receive data
+    const dataCheckCallback = () => {
+      this.hasReceivedData = true;
+      
+      // Remove this temporary callback after first data receipt
+      const index = this.callbacks.indexOf(dataCheckCallback);
+      if (index > -1) {
+        this.callbacks.splice(index, 1);
+      }
+    };
+    
+    // Add our temporary callback
+    this.callbacks.push(dataCheckCallback);
+    
+    // Check after 10 seconds if we've received any data
+    this.dataCheckTimer = setTimeout(() => {
+      if (!this.hasReceivedData && this.isConnected) {
+        console.warn("No data received after 10 seconds of connection");
+        
+        // If using WebSocket but not receiving data, try to reconnect
+        if (this.usingWebSocket) {
+          console.log("WebSocket connected but no data received, attempting to reconnect...");
+          
+          // Force disconnect and try again
+          this.disconnect().then(() => {
+            // Try again with WebSocket (will auto-fallback to mock data if it fails)
+            this.connect().catch(error => {
+              console.error("Reconnection failed:", error);
+              
+              // If auto-detect is enabled, fall back to mock data
+              if (this.autoDetectHardware) {
+                this.useMockData = true;
+                this.setupMockData();
+              }
+            });
+          });
+        }
+      }
+    }, 10000);
+  }
+  
   // Handle errors from serial connection
   private handleError(error: Error): void {
-    console.error("Serial connection error:", error);
+    console.error("Connection error:", error);
     
     // Notify about invalid data or disconnection
-    const errorMessage = error.message.includes("Invalid data") 
-      ? "Arduino sent invalid data format" 
-      : "Arduino disconnected";
+    let errorMessage = "Connection error";
+    if (error.message.includes("Invalid data")) {
+      errorMessage = "Invalid data format received";
+    } else if (error.message.includes("disconnected")) {
+      errorMessage = "Device disconnected";
+    } else if (error.message.includes("timeout")) {
+      errorMessage = "Connection timed out - no data received";
+    }
       
     // Dispatch a custom event that components can listen for
     const event = new CustomEvent('arduino-error', { 
@@ -322,11 +392,19 @@ class SerialService {
     // Notify registered error callbacks
     this.errorCallbacks.forEach(callback => callback(error));
     
-    // If auto-detecting, try to reconnect or fallback to mock data
-    if (this.autoDetectHardware) {
+    // If auto-detecting and this is a timeout error with WebSocket,
+    // try to reconnect or fallback to mock data
+    if (this.autoDetectHardware && 
+        this.usingWebSocket && 
+        error.message.includes("timeout")) {
+      
       this.disconnect().then(() => {
-        this.useMockData = true;
-        this.setupMockData();
+        // Try one more time with WebSocket
+        this.connect().catch(() => {
+          // If it fails again, use mock data
+          this.useMockData = true;
+          this.setupMockData();
+        });
       });
     }
   }
@@ -393,6 +471,12 @@ class SerialService {
   // Disconnect from the serial device
   async disconnect(): Promise<void> {
     this.isConnected = false;
+    
+    // Clear any data check timer
+    if (this.dataCheckTimer) {
+      clearTimeout(this.dataCheckTimer);
+      this.dataCheckTimer = null;
+    }
     
     // Stop mock data if it's running
     mockDataService.stopMockDataEmission();
