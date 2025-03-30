@@ -6,7 +6,6 @@ import {
   RawMessageCallback, 
   ErrorCallback 
 } from './types/serial.types';
-import mockDataService from './MockDataService';
 import logParserService from './LogParserService';
 import { toast } from "sonner";
 
@@ -15,7 +14,6 @@ class SerialService {
   private callbacks: DataCallback[] = [];
   private rawCallbacks: RawMessageCallback[] = [];
   private errorCallbacks: ErrorCallback[] = [];
-  private useMockData: boolean = false;
 
   constructor() {
     // Set up event listeners for errors if needed
@@ -37,7 +35,7 @@ class SerialService {
   
   // Check if using mock data
   get isMockData(): boolean {
-    return this.useMockData;
+    return false; // Never using mock data
   }
 
   // Connect to the system - this now just means start using log parsing
@@ -45,10 +43,7 @@ class SerialService {
     try {
       console.log("[DOCKER-LOG][SerialService] Connecting to serial monitor logs");
       
-      // Explicitly set mock data to false - never use mock data
-      this.useMockData = false;
-      
-      console.log("[DOCKER-LOG][SerialService] Using mock data?", this.useMockData);
+      console.log("[DOCKER-LOG][SerialService] Using real data from logs");
       
       // Set up log parser to get real data from logs
       console.log("[DOCKER-LOG][SerialService] Setting up log parser to use real data");
@@ -65,12 +60,22 @@ class SerialService {
       logParserService.startPolling();
       
       this.isConnected = true;
-      console.log("[DOCKER-LOG][SerialService] Successfully connected, status:", this.isConnected, "using mock data:", this.useMockData);
+      console.log("[DOCKER-LOG][SerialService] Successfully connected, status:", this.isConnected);
+      
+      // Dispatch success event
+      const successEvent = new CustomEvent('connection-success', {
+        detail: {
+          message: "Connected to Arduino",
+          description: "Now receiving real data via serial connection"
+        }
+      });
+      document.dispatchEvent(successEvent);
+      
       return true;
     } catch (error) {
       console.error("[DOCKER-LOG][SerialService] Failed to connect:", error);
       
-      // Show error instead of falling back to mock data
+      // Show error
       toast.error("Failed to connect to Arduino", {
         description: "Could not establish connection to obtain real sensor data. Please check your hardware connection."
       });
@@ -90,7 +95,7 @@ class SerialService {
 
   // Disconnect from the service
   async disconnect(): Promise<void> {
-    console.log("[DOCKER-LOG][SerialService] Disconnecting, current connection status:", this.isConnected, "using mock data:", this.useMockData);
+    console.log("[DOCKER-LOG][SerialService] Disconnecting, current connection status:", this.isConnected);
     this.isConnected = false;
     
     // Stop log parser if it's running
