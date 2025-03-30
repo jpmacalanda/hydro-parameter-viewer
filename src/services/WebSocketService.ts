@@ -12,7 +12,7 @@ class WebSocketService {
   private reconnectAttempts = 0;
   private maxReconnectAttempts = 5;
   
-  connect(serverUrl: string = `ws://${window.location.hostname}:8081`) {
+  connect(serverUrl: string = this.getDefaultWebSocketUrl()) {
     this.ws = new WebSocket(serverUrl);
     
     this.ws.onmessage = (event) => {
@@ -37,6 +37,11 @@ class WebSocketService {
     this.ws.onerror = (error) => {
       console.error('WebSocket error:', error);
     };
+  }
+  
+  private getDefaultWebSocketUrl(): string {
+    const protocol = window.location.protocol === 'https:' ? 'wss:' : 'ws:';
+    return `${protocol}//${window.location.hostname}:8081`;
   }
   
   onData(callback: DataCallback) {
