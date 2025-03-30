@@ -24,15 +24,16 @@ async def http_handler(path, request_headers):
     ]
     
     # Handle preflight OPTIONS requests - properly handle Request object
-    if isinstance(request_headers, websockets.http.Request):
+    if isinstance(request_headers, websockets.datastructures.Headers):
+        # Cannot determine method from Headers object, skip OPTIONS check
+        pass
+    elif hasattr(request_headers, 'method'):
+        # Handle Request object
         method = request_headers.method
-    else:
-        method = getattr(request_headers, 'method', None)
-        
-    if method == 'OPTIONS':
-        logger.info(f"Received OPTIONS request to {path}")
-        return http.HTTPStatus.OK, cors_headers, b""
-        
+        if method == 'OPTIONS':
+            logger.info(f"Received OPTIONS request to {path}")
+            return http.HTTPStatus.OK, cors_headers, b""
+    
     if path == '/health' or path == '/':
         logger.info(f"Received HTTP request to {path}")
         return http.HTTPStatus.OK, cors_headers, b"healthy\n"
