@@ -36,8 +36,8 @@ services:
     volumes:
       - ./ssl:/etc/nginx/ssl
     environment:
-      - USE_SSL=false  # Changed to false to simplify debugging
-      - MOCK_DATA=true  # Use mock data initially for easier testing
+      - USE_SSL=false  # Set to false to avoid SSL issues during debugging
+      - MOCK_DATA=true  # Use mock data for testing
     networks:
       - hydroponics-network
     restart: unless-stopped

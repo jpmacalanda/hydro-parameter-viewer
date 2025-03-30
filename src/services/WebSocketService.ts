@@ -19,6 +19,7 @@ class WebSocketService {
   private healthCheckInterval: ReturnType<typeof setInterval> | null = null;
   private reconnectTimer: ReturnType<typeof setTimeout> | null = null;
   private debugMode = true; // Set to true to enable verbose logging
+  private currentUrl: string = '';
   
   connect(serverUrl: string = this.getDefaultWebSocketUrl()) {
     if (this.reconnectTimer) {
@@ -27,6 +28,7 @@ class WebSocketService {
     }
     
     console.log(`Attempting WebSocket connection to: ${serverUrl}`);
+    this.currentUrl = serverUrl;
     
     try {
       if (this.ws) {
@@ -117,16 +119,43 @@ class WebSocketService {
         this.isConnected = false;
         this.stopHealthCheck();
         
-        // Notify with a clear error message about connection closure
-        this.notifyError(new Error(`WebSocket connection closed (Code: ${event.code})`));
+        // Provide more detailed error messages based on close code
+        let errorMessage = `WebSocket connection closed (Code: ${event.code})`;
+        if (event.code === 1000) {
+          errorMessage = "Normal closure, meaning the purpose for which the connection was established has been fulfilled";
+        } else if (event.code === 1001) {
+          errorMessage = "Server going down or browser navigating away";
+        } else if (event.code === 1002) {
+          errorMessage = "Protocol error";
+        } else if (event.code === 1003) {
+          errorMessage = "Received data cannot be accepted";
+        } else if (event.code === 1006) {
+          errorMessage = "Connection closed abnormally, e.g., server process died or network down";
+        } else if (event.code === 1007) {
+          errorMessage = "Message is inconsistent with the message type";
+        } else if (event.code === 1008) {
+          errorMessage = "Message violates policy";
+        } else if (event.code === 1009) {
+          errorMessage = "Message is too big";
+        } else if (event.code === 1010) {
+          errorMessage = "Missing required protocol extension";
+        } else if (event.code === 1011) {
+          errorMessage = "Internal server error";
+        } else if (event.code === 1015) {
+          errorMessage = "TLS handshake failure";
+        }
         
+        // Notify with detailed error message about connection closure
+        this.notifyError(new Error(errorMessage));
+        
+        // Attempt to reconnect
         if (this.reconnectAttempts < this.maxReconnectAttempts) {
           const delay = Math.min(1000 * Math.pow(1.5, this.reconnectAttempts), 30000);
           console.log(`Attempting to reconnect in ${delay}ms (attempt ${this.reconnectAttempts + 1}/${this.maxReconnectAttempts})`);
           
           this.reconnectTimer = setTimeout(() => {
             this.reconnectAttempts++;
-            this.connect(serverUrl);
+            this.connect(this.currentUrl);
           }, delay);
         } else {
           console.error('Maximum reconnection attempts reached.');
@@ -136,8 +165,25 @@ class WebSocketService {
       
       this.ws.onerror = (error) => {
         console.error('WebSocket error:', error);
-        this.notifyError(new Error('WebSocket connection error - Check if the server is running'));
         
+        // Try to provide more detailed error information
+        let errorMessage = 'WebSocket connection error';
+        
+        // Check if error happened before connection was established
+        if (!this.isConnected) {
+          errorMessage = 'WebSocket connection failed - Check if the server is running';
+          
+          // Check if the error might be due to server not running
+          if (serverUrl.includes('localhost') || serverUrl.includes('127.0.0.1')) {
+            errorMessage += ' on ' + serverUrl;
+          } else {
+            errorMessage += ' (server might be down or unreachable)';
+          }
+        }
+        
+        this.notifyError(new Error(errorMessage));
+        
+        // Try fallback from secure to non-secure WebSocket if needed
         if (serverUrl.startsWith('wss:') && this.reconnectAttempts === 0) {
           console.log('Secure WebSocket connection failed, trying fallback to non-secure...');
           const fallbackUrl = serverUrl.replace('wss:', 'ws:');
@@ -188,30 +234,29 @@ class WebSocketService {
     const hostname = window.location.hostname;
     console.log(`Current hostname: ${hostname}`);
     
+    // Get the port from the current location to handle development setups
+    const protocol = window.location.protocol === 'https:' ? 'wss:' : 'ws:';
+    console.log(`Using protocol: ${protocol}`);
+    
     // Check if we're accessing from Raspberry Pi itself
     if (this.isRaspberryPi()) {
-      // When running on the Pi itself, we use the local hostname
-      const url = `ws://${hostname}:8081`;
+      // When running on the Pi itself, connect to the websocket server on 8081
+      const url = `${protocol}//${hostname}:8081`;
       console.log(`Using Raspberry Pi URL: ${url}`);
       return url;
     }
-    
-    // For secure connections or remote access
-    const protocol = window.location.protocol === 'https:' ? 'wss:' : 'ws:';
     
     // If not localhost, we're probably accessing remotely - use relative path
     if (hostname !== 'localhost' && hostname !== '127.0.0.1') {
       // For remote access, use a relative WebSocket URL
       // This will connect to the same host but on the WebSocket port
-      // This works if you have a reverse proxy setup
       const url = `${protocol}//${hostname}:8081`;
       console.log(`Using direct remote URL: ${url}`);
       return url;
     }
     
     // For development on localhost
-    const port = '8081';
-    const url = `${protocol}//${hostname}:${port}`;
+    const url = `${protocol}//${hostname}:8081`;
     console.log(`Using development URL: ${url}`);
     return url;
   }
@@ -273,11 +318,11 @@ class WebSocketService {
       const now = Date.now();
       if (now - this.lastMessageTime > 20000) {
         console.warn('No data received from WebSocket in the last 20 seconds');
-        this.notifyError(new Error('No data received from server (timeout)'));
+        this.notifyError(new Error('No data received from server - Arduino may not be connected or sending data'));
         
         if (this.isConnected && this.ws && this.ws.readyState === WebSocket.OPEN) {
           console.log('Forcing WebSocket reconnection due to stale connection');
-          this.ws.close();
+          this.ws.close(1000, "Health check failed - no data received");
         }
       }
     }, 5000);
