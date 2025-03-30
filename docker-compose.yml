@@ -36,13 +36,13 @@ services:
     volumes:
       - ./ssl:/etc/nginx/ssl
     environment:
-      - USE_SSL=true
-      - MOCK_DATA=true
+      - USE_SSL=false  # Changed to false to simplify debugging
+      - MOCK_DATA=true  # Use mock data initially for easier testing
     networks:
       - hydroponics-network
     restart: unless-stopped
     healthcheck:
-      test: ["CMD", "curl", "-k", "https://localhost:8081/health" , "||", "exit", "0"]
+      test: ["CMD", "curl", "-k", "http://localhost:8081/health" , "||", "exit", "0"]
       interval: 30s
       timeout: 10s
       retries: 3

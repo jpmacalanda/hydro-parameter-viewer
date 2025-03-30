@@ -117,6 +117,9 @@ class WebSocketService {
         this.isConnected = false;
         this.stopHealthCheck();
         
+        // Notify with a clear error message about connection closure
+        this.notifyError(new Error(`WebSocket connection closed (Code: ${event.code})`));
+        
         if (this.reconnectAttempts < this.maxReconnectAttempts) {
           const delay = Math.min(1000 * Math.pow(1.5, this.reconnectAttempts), 30000);
           console.log(`Attempting to reconnect in ${delay}ms (attempt ${this.reconnectAttempts + 1}/${this.maxReconnectAttempts})`);
@@ -133,7 +136,7 @@ class WebSocketService {
       
       this.ws.onerror = (error) => {
         console.error('WebSocket error:', error);
-        this.notifyError(new Error('WebSocket connection error'));
+        this.notifyError(new Error('WebSocket connection error - Check if the server is running'));
         
         if (serverUrl.startsWith('wss:') && this.reconnectAttempts === 0) {
           console.log('Secure WebSocket connection failed, trying fallback to non-secure...');
@@ -161,7 +164,7 @@ class WebSocketService {
       return true;
     } catch (error) {
       console.error('Error creating WebSocket:', error);
-      this.notifyError(new Error('Failed to create WebSocket connection'));
+      this.notifyError(new Error('Failed to create WebSocket connection - Is the server running?'));
       return false;
     }
   }
@@ -180,23 +183,35 @@ class WebSocketService {
   
   private getDefaultWebSocketUrl(): string {
     console.log("Getting default WebSocket URL");
+    
+    // Use window location to determine if we're on Raspberry Pi
+    const hostname = window.location.hostname;
+    console.log(`Current hostname: ${hostname}`);
+    
+    // Check if we're accessing from Raspberry Pi itself
     if (this.isRaspberryPi()) {
-      const hostname = window.location.hostname;
+      // When running on the Pi itself, we use the local hostname
       const url = `ws://${hostname}:8081`;
       console.log(`Using Raspberry Pi URL: ${url}`);
       return url;
     }
     
+    // For secure connections or remote access
     const protocol = window.location.protocol === 'https:' ? 'wss:' : 'ws:';
     
-    if (window.location.hostname !== 'localhost' && window.location.hostname !== '127.0.0.1') {
-      const url = `${protocol}//${window.location.host}/ws`;
-      console.log(`Using proxied URL: ${url}`);
+    // If not localhost, we're probably accessing remotely - use relative path
+    if (hostname !== 'localhost' && hostname !== '127.0.0.1') {
+      // For remote access, use a relative WebSocket URL
+      // This will connect to the same host but on the WebSocket port
+      // This works if you have a reverse proxy setup
+      const url = `${protocol}//${hostname}:8081`;
+      console.log(`Using direct remote URL: ${url}`);
       return url;
     }
     
+    // For development on localhost
     const port = '8081';
-    const url = `${protocol}//${window.location.hostname}:${port}`;
+    const url = `${protocol}//${hostname}:${port}`;
     console.log(`Using development URL: ${url}`);
     return url;
   }
@@ -223,6 +238,7 @@ class WebSocketService {
   }
   
   private notifyError(error: Error) {
+    console.error('WebSocket error notification:', error.message);
     this.errorCallbacks.forEach(callback => callback(error));
     
     const event = new CustomEvent('websocket-error', { 

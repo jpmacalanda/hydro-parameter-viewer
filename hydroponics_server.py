@@ -37,6 +37,10 @@ if not MOCK_DATA:
         print(f"Error opening serial port: {e}")
         print("Falling back to mock data mode")
         MOCK_DATA = True
+        print(f"CHECK IF:")
+        print(f"- Arduino is connected to {SERIAL_PORT}")
+        print(f"- You have permission to access {SERIAL_PORT} (try: sudo chmod 666 {SERIAL_PORT})")
+        print(f"- The Arduino is sending data in the format: pH:6.20,temp:23.20,water:medium,tds:652")
 
 if MOCK_DATA:
     print("Running in MOCK DATA mode - will generate simulated sensor readings")
@@ -44,27 +48,42 @@ if MOCK_DATA:
 connected_clients = set()
 
 async def handle_client(websocket, path):
-    print(f"Client connected: {websocket.remote_address}")
+    client_address = websocket.remote_address if hasattr(websocket, 'remote_address') else 'Unknown'
+    print(f"Client connected: {client_address}")
+    
     connected_clients.add(websocket)
     try:
         # Handle health check requests
         if path == "/health":
             await websocket.send("healthy")
+            print(f"Sent health check response to {client_address}")
             return
             
+        # Send initial success message
+        try:
+            await websocket.send(json.dumps({
+                "ph": 7.0,
+                "temperature": 25.0,
+                "waterLevel": "medium",
+                "tds": 650
+            }))
+            print(f"Sent initial data to {client_address}")
+        except Exception as e:
+            print(f"Error sending initial data: {e}")
+        
         # Stay in this loop to handle incoming messages
         async for message in websocket:
             if message == "ping":
-                print(f"Received ping from {websocket.remote_address}, sending pong")
+                print(f"Received ping from {client_address}, sending pong")
                 await websocket.send("pong")
             
     except websockets.exceptions.ConnectionClosed:
-        print(f"Connection closed by client: {websocket.remote_address}")
+        print(f"Connection closed by client: {client_address}")
     except Exception as e:
         print(f"Error handling client: {e}")
     finally:
         connected_clients.remove(websocket)
-        print(f"Client disconnected: {websocket.remote_address}")
+        print(f"Client disconnected: {client_address}")
 
 async def generate_mock_data():
     """Generate mock sensor data when no Arduino is connected"""
@@ -186,6 +205,7 @@ async def read_serial():
                             print(f"Sent to {len(connected_clients)} clients: {message}")
                     else:
                         print(f"Incomplete or invalid data: {parsed_data}")
+                        print(f"Expected format: pH:6.20,temp:23.20,water:medium,tds:652")
             except Exception as e:
                 print(f"Error reading/processing serial data: {e}")
                 
@@ -228,17 +248,28 @@ async def main():
             print("Falling back to non-secure WebSocket")
             ssl_context = None
     
-    server = await websockets.serve(
-        health_server,  # Use the health-aware handler
-        "0.0.0.0", 
-        WS_PORT, 
-        ssl=ssl_context,
-        ping_interval=None  # Disable automatic ping as we're implementing our own
-    )
-    
-    print(f"WebSocket server running on port {WS_PORT} {'with SSL' if ssl_context else 'without SSL'}")
-    serial_task = asyncio.create_task(read_serial())
-    await server.wait_closed()
+    try:
+        server = await websockets.serve(
+            health_server,  # Use the health-aware handler
+            "0.0.0.0", 
+            WS_PORT, 
+            ssl=ssl_context,
+            ping_interval=None  # Disable automatic ping as we're implementing our own
+        )
+        
+        print(f"WebSocket server running on port {WS_PORT} {'with SSL' if ssl_context else 'without SSL'}")
+        print(f"WebSocket server URL: ws://localhost:{WS_PORT}")
+        print(f"WebSocket server network URL: ws://0.0.0.0:{WS_PORT}")
+        if hostname := os.environ.get("HOSTNAME"):
+            print(f"Container hostname: {hostname}")
+        
+        serial_task = asyncio.create_task(read_serial())
+        await server.wait_closed()
+    except Exception as e:
+        print(f"Failed to start WebSocket server: {e}")
+        print(f"Check if port {WS_PORT} is already in use")
+        print(f"You may need to restart the docker container or kill any process using port {WS_PORT}")
+        sys.exit(1)
 
 if __name__ == "__main__":
     try:
