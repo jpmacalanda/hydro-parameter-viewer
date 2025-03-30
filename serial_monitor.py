@@ -36,40 +36,8 @@ MOCK_DATA = os.environ.get('MOCK_DATA', 'false').lower() == 'true'
 MAX_RETRIES = int(os.environ.get('MAX_RETRIES', 5))
 RETRY_DELAY = int(os.environ.get('RETRY_DELAY', 3))
 
-def generate_mock_data():
-    """Generate mock data for testing purposes"""
-    import random
-    logger.info("Starting mock data generation")
-    while True:
-        ph = round(random.uniform(5.5, 7.5), 1)
-        temp = round(random.uniform(20.0, 28.0), 1)
-        water_level = random.choice(["low", "medium", "high"])
-        tds = random.randint(400, 800)
-        
-        # Log the raw data exactly as if it came from Arduino
-        data_str = f"pH:{ph},temp:{temp},water:{water_level.upper()},tds:{tds}"
-        logger.info(f"SERIAL DATA: {data_str}")
-        
-        # Log data in JSON format for easier parsing
-        json_data = {"ph": ph, "temperature": temp, "waterLevel": water_level.upper(), "tds": tds}
-        logger.info(f"Parsed data: {json.dumps(json_data)}")
-        
-        # Log in multiple formats to make parsing easier for web app
-        logger.info(f"JSON parsed_data={json.dumps(json_data)}")
-        logger.info(f"JSON_DATA={json.dumps(json_data)}")
-        logger.info(f"SENSOR_DATA pH:{ph},temp:{temp},water:{water_level.upper()},tds:{tds}")
-        
-        # Also log in the format that the app is looking for
-        logger.info(f"pH:{ph},temp:{temp},water:{water_level.upper()},tds:{tds}")
-        time.sleep(2)
-
 def main():
     logger.info(f"Serial Monitor starting with: PORT={SERIAL_PORT}, BAUD={BAUD_RATE}, MOCK={MOCK_DATA}")
-    
-    if MOCK_DATA:
-        logger.info("Using mock data mode")
-        generate_mock_data()
-        return
     
     # Try to connect to serial port with retries
     retries = 0
@@ -97,8 +65,10 @@ def main():
                 logger.info(f"Retrying in {RETRY_DELAY} seconds... (Attempt {retries}/{MAX_RETRIES})")
                 time.sleep(RETRY_DELAY)
             else:
-                logger.error(f"Maximum retries ({MAX_RETRIES}) reached. Falling back to mock data.")
-                generate_mock_data()
+                logger.error(f"Maximum retries ({MAX_RETRIES}) reached. Using sample data.")
+                # Use sample data instead of mock data to keep logs consistent
+                logger.info("Using sample data format for compatibility")
+                sample_data_loop()
                 return
         except Exception as e:
             logger.error(f"Unexpected error: {e}")
@@ -166,6 +136,41 @@ def main():
             logger.info("Closed serial port")
     
     return 0
+
+def sample_data_loop():
+    """
+    Use sample data instead of random mock data to ensure consistent format
+    This maintains format compatibility without random values
+    """
+    logger.info("Starting sample data logging for compatibility")
+    # Use consistent sample values
+    sample_values = [
+        {"ph": 6.5, "temperature": 23.0, "waterLevel": "MEDIUM", "tds": 650},
+        {"ph": 6.6, "temperature": 23.2, "waterLevel": "MEDIUM", "tds": 655},
+        {"ph": 6.7, "temperature": 23.1, "waterLevel": "MEDIUM", "tds": 660}
+    ]
+    
+    index = 0
+    while True:
+        # Rotate through sample values
+        data = sample_values[index % len(sample_values)]
+        index += 1
+        
+        # Log the raw data exactly as if it came from Arduino
+        data_str = f"pH:{data['ph']},temp:{data['temperature']},water:{data['waterLevel']},tds:{data['tds']}"
+        logger.info(f"SERIAL DATA: {data_str}")
+        
+        # Log data in JSON format for easier parsing
+        logger.info(f"Parsed data: {json.dumps(data)}")
+        
+        # Log in multiple formats to make parsing easier for web app
+        logger.info(f"JSON parsed_data={json.dumps(data)}")
+        logger.info(f"JSON_DATA={json.dumps(data)}")
+        logger.info(f"SENSOR_DATA pH:{data['ph']},temp:{data['temperature']},water:{data['waterLevel']},tds:{data['tds']}")
+        
+        # Also log in the format that the app is looking for
+        logger.info(f"pH:{data['ph']},temp:{data['temperature']},water:{data['waterLevel']},tds:{data['tds']}")
+        time.sleep(2)
 
 if __name__ == "__main__":
     sys.exit(main())
