@@ -14,7 +14,7 @@ function App() {
   const [sensorData, setSensorData] = useState<SerialData>({
     ph: 7.0,
     temperature: 25.0,
-    waterLevel: "medium",
+    waterLevel: "medium" as "low" | "medium" | "high", // Type assertion to fix the TypeScript error
     tds: 650
   });
   const [dataHistory, setDataHistory] = useState<SerialData[]>([]);
