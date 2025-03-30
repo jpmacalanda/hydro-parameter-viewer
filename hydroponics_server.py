@@ -1,4 +1,3 @@
-
 import asyncio
 import serial
 import websockets
@@ -176,8 +175,13 @@ async def http_handler(path, request_headers):
         ('Access-Control-Max-Age', '86400'),  # 24 hours
     ]
     
-    # Handle preflight OPTIONS requests
-    if request_headers.get('method', '') == 'OPTIONS':
+    # Handle preflight OPTIONS requests - fix for Request object handling
+    if isinstance(request_headers, websockets.http.Request):
+        method = request_headers.method
+    else:
+        method = getattr(request_headers, 'method', None)
+        
+    if method == 'OPTIONS':
         logger.info(f"Received OPTIONS request to {path}")
         return http.HTTPStatus.OK, cors_headers, b""
         
