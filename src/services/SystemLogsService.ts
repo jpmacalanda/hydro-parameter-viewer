@@ -64,7 +64,7 @@ class SystemLogsService {
       const logs = await response.text();
       
       if (logs && logs !== "") {
-        this.notifyLogCallbacks(logs);
+        this.notifyCallbacks(logs);
       } else {
         console.warn("Received empty logs from server");
       }
@@ -73,7 +73,7 @@ class SystemLogsService {
       
       // If we can't get real logs, fall back to mock logs
       const mockLogs = this.generateMockLogs();
-      this.notifyLogCallbacks(mockLogs);
+      this.notifyCallbacks(mockLogs);
       
       toast.error('Failed to fetch system logs', {
         description: 'Could not retrieve container logs'
@@ -120,7 +120,7 @@ ${now} - INFO - Served static content`;
   removeCallback(callback: LogCallback): void {
     const index = this.logCallbacks.indexOf(callback);
     if (index !== -1) {
-      this.callbacks.splice(index, 1);
+      this.logCallbacks.splice(index, 1);
     }
   }
 
