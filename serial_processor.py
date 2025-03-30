@@ -1,4 +1,3 @@
-
 import asyncio
 import serial
 import json
@@ -25,6 +24,12 @@ def initialize_serial():
     if settings.MOCK_DATA:
         logger.info("Running in MOCK DATA mode - will generate simulated sensor readings")
         return None
+    
+    # Check if port is used by other processes
+    port_busy, pids, cmds = settings.check_serial_port_used_by_process()
+    if port_busy:
+        logger.warning("Serial port is busy, falling back to mock data mode")
+        return None
         
     try:
         logger.debug(f"Attempting to open serial port {settings.SERIAL_PORT} at {settings.BAUD_RATE} baud")
@@ -44,6 +49,7 @@ def initialize_serial():
         logger.error(f"- Arduino is connected to {settings.SERIAL_PORT}")
         logger.error(f"- You have permission to access {settings.SERIAL_PORT} (try: sudo chmod 666 {settings.SERIAL_PORT})")
         logger.error(f"- The Arduino is sending data in the format: pH:6.20,temp:23.20,water:medium,tds:652")
+        logger.error(f"- The port is not in use by another process (try: lsof {settings.SERIAL_PORT})")
         return None
     except Exception as e:
         logger.error(f"Unexpected error when connecting to serial port: {e}")

@@ -4,7 +4,7 @@ import { Button } from "@/components/ui/button";
 import serialService from "@/services/SerialService";
 import webSocketService from "@/services/WebSocketService";
 import { toast } from "sonner";
-import { Zap, RefreshCcw, Wifi, Usb } from "lucide-react";
+import { Zap, RefreshCcw, Wifi, Usb, AlertCircle } from "lucide-react";
 import { Label } from "@/components/ui/label";
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@/components/ui/select";
 import { SerialPortInfo } from "@/services/types/serial.types";
@@ -27,6 +27,7 @@ const ConnectionControl: React.FC<ConnectionControlProps> = ({
   const [selectedPortId, setSelectedPortId] = useState<string>("");
   const [loadingPorts, setLoadingPorts] = useState(false);
   const [isError, setIsError] = useState(false);
+  const [portStatus, setPortStatus] = useState<{busy: boolean, message: string}>({busy: false, message: ''});
   const isWebSerialSupported = serialService.isSupported;
   const isSecurityRestricted = serialService.isSecurityRestricted;
   
@@ -77,6 +78,9 @@ const ConnectionControl: React.FC<ConnectionControlProps> = ({
       if (ports.length > 0 && !selectedPortId) {
         setSelectedPortId(ports[0].id);
       }
+      
+      // Check port status
+      await checkPortUsage();
     } catch (error) {
       console.error("Error fetching ports:", error);
       toast.error("Failed to list COM ports", {
@@ -84,6 +88,43 @@ const ConnectionControl: React.FC<ConnectionControlProps> = ({
       });
     } finally {
       setLoadingPorts(false);
+    }
+  };
+  
+  const checkPortUsage = async () => {
+    try {
+      // This would require a backend API endpoint to check port usage
+      // Since we're using WebSocket, we can potentially add a custom command
+      if (isWebSerialSupported && !isSecurityRestricted && selectedPortId) {
+        const selectedPort = availablePorts.find(p => p.id === selectedPortId);
+        if (selectedPort) {
+          const portName = selectedPort.displayName;
+          
+          // Check if port can be opened (if it's already in use, this will fail)
+          try {
+            await navigator.serial.requestPort({filters: []});
+            setPortStatus({
+              busy: false,
+              message: `Port ${portName} is available.`
+            });
+          } catch (err) {
+            if (err instanceof Error && err.name === 'NotFoundError') {
+              setPortStatus({
+                busy: false,
+                message: 'No matching port found.'
+              });
+            } else {
+              console.error("Error checking port:", err);
+              setPortStatus({
+                busy: true,
+                message: `Port ${portName} may be in use by another application.`
+              });
+            }
+          }
+        }
+      }
+    } catch (error) {
+      console.error("Error checking port usage:", error);
     }
   };
   
@@ -203,7 +244,11 @@ const ConnectionControl: React.FC<ConnectionControlProps> = ({
               <div className="flex space-x-2 items-center">
                 <Select
                   value={selectedPortId}
-                  onValueChange={setSelectedPortId}
+                  onValueChange={(value) => {
+                    setSelectedPortId(value);
+                    // Check port status when selection changes
+                    setTimeout(checkPortUsage, 100);
+                  }}
                   disabled={isConnected || loadingPorts}
                 >
                   <SelectTrigger id="port-select" className="flex-1">
@@ -233,6 +278,13 @@ const ConnectionControl: React.FC<ConnectionControlProps> = ({
                   <RefreshCcw className={`h-4 w-4 ${loadingPorts ? 'animate-spin' : ''}`} />
                 </Button>
               </div>
+              
+              {portStatus.busy && (
+                <div className="mt-2 text-sm flex items-center text-yellow-600">
+                  <AlertCircle className="h-4 w-4 mr-1" />
+                  {portStatus.message}
+                </div>
+              )}
             </div>
           </div>
         )}
@@ -274,4 +326,3 @@ const ConnectionControl: React.FC<ConnectionControlProps> = ({
 };
 
 export default ConnectionControl;
-

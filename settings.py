@@ -4,6 +4,8 @@ import glob
 import serial
 import logging
 import socket
+import subprocess
+import sys
 
 logger = logging.getLogger("hydroponics_server")
 
@@ -67,6 +69,51 @@ def check_port_availability():
         logger.error(f"Run: sudo lsof -i :{WS_PORT}")
         logger.error(f"And then: sudo kill <PID>")
 
+def check_serial_port_used_by_process():
+    """Check if the serial port is currently being used by another process"""
+    port_busy = False
+    pids = []
+    cmds = []
+    
+    try:
+        if sys.platform.startswith('linux') or sys.platform.startswith('darwin'):
+            # Use lsof on Linux/Mac to find processes using the port
+            try:
+                output = subprocess.check_output(['lsof', SERIAL_PORT], universal_newlines=True)
+                lines = output.strip().split('\n')
+                
+                if len(lines) > 1:  # First line is header
+                    port_busy = True
+                    for line in lines[1:]:
+                        parts = line.split()
+                        if len(parts) > 1:
+                            pids.append(parts[1])
+                            cmds.append(parts[0])
+            except subprocess.CalledProcessError:
+                # lsof returns non-zero if no processes are using the file
+                port_busy = False
+                
+        elif sys.platform.startswith('win'):
+            # For Windows, check if we can open the port
+            try:
+                s = serial.Serial(SERIAL_PORT)
+                s.close()
+                port_busy = False
+            except serial.SerialException:
+                port_busy = True
+                logger.warning(f"Serial port {SERIAL_PORT} appears to be in use by another process")
+    except Exception as e:
+        logger.error(f"Error checking if serial port is used by process: {e}")
+    
+    if port_busy:
+        logger.warning(f"Serial port {SERIAL_PORT} is currently being used by other processes:")
+        for i, (pid, cmd) in enumerate(zip(pids, cmds)):
+            logger.warning(f"  Process {pid} ({cmd})")
+        logger.warning(f"You may need to terminate these processes to use the port.")
+        logger.warning(f"Try: sudo kill {' '.join(pids)}")
+    
+    return port_busy, pids, cmds
+
 def check_serial_port():
     """Check if the configured serial port is available and accessible"""
     available_ports = list_serial_ports()
@@ -80,6 +127,9 @@ def check_serial_port():
             logger.info(f"Will attempt to connect to {SERIAL_PORT} anyway in case it appears later")
         else:
             logger.warning("No serial ports found on the system")
+    
+    # Check if the serial port is being used by other processes
+    port_busy, pids, cmds = check_serial_port_used_by_process()
     
     # Check if the user has permission to access the serial port
     if os.path.exists(SERIAL_PORT):
