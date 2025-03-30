@@ -1,13 +1,28 @@
+
 import React from 'react';
 import { Switch } from "@/components/ui/switch"
 import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card"
 import { Label } from "@/components/ui/label"
-import { useDashboard } from '@/context/DashboardContext';
 import { toast } from "sonner";
 
-const FeatureSettings: React.FC = () => {
-  const { features, setFeatures } = useDashboard();
+interface FeatureSettingsProps {
+  features: {
+    showStatistics: boolean;
+    showThresholds: boolean;
+    showSystemLogs: boolean;
+    showSerialMonitor: boolean;
+    useWebSocket: boolean;
+  };
+  setFeatures: React.Dispatch<React.SetStateAction<{
+    showStatistics: boolean;
+    showThresholds: boolean;
+    showSystemLogs: boolean;
+    showSerialMonitor: boolean;
+    useWebSocket: boolean;
+  }>>;
+}
 
+const FeatureSettings: React.FC<FeatureSettingsProps> = ({ features, setFeatures }) => {
   const handleServiceToggle = async (useWebSocket: boolean) => {
     try {
       // Prepare the query parameters
