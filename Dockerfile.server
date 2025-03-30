@@ -58,7 +58,9 @@ else
   echo "Using real data from logs"
 fi
 
+# Always force mock data to be disabled
 export MOCK_DATA=false
+echo "MOCK_DATA environment variable explicitly set to: $MOCK_DATA"
 exec python3 hydroponics_server.py
 EOF
 

@@ -8,17 +8,18 @@ class MockDataService {
   
   onData(callback: DataCallback): void {
     this.callbacks.push(callback);
-    console.log("[MockDataService] Added data callback, but mock data is disabled");
+    console.log("[MockDataService] Added data callback, but mock data is completely disabled");
   }
   
   onRawMessage(callback: RawMessageCallback): void {
     this.rawCallbacks.push(callback);
-    console.log("[MockDataService] Added raw message callback, but mock data is disabled");
+    console.log("[MockDataService] Added raw message callback, but mock data is completely disabled");
   }
 
   startMockDataEmission(): void {
-    console.log("[MockDataService] Mock data emission is disabled");
-    // Mock data generation is disabled
+    console.log("[MockDataService] Mock data emission is permanently disabled");
+    // Ensure no interval is ever created
+    this.stopMockDataEmission();
     return;
   }
 
@@ -26,12 +27,14 @@ class MockDataService {
     if (this.mockDataInterval) {
       clearInterval(this.mockDataInterval);
       this.mockDataInterval = null;
+      console.log("[MockDataService] Cleared any existing mock data interval");
     }
   }
 
   clearCallbacks(): void {
     this.callbacks = [];
     this.rawCallbacks = [];
+    console.log("[MockDataService] Cleared all callbacks");
   }
 }
 

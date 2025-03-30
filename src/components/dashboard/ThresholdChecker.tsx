@@ -18,10 +18,25 @@ interface ThresholdCheckerProps {
 const ThresholdChecker: React.FC<ThresholdCheckerProps> = ({ sensorData, thresholds }) => {
   const { addNotification } = useNotifications();
   const [lastNotificationTime, setLastNotificationTime] = useState<Record<string, number>>({});
+  const [isFirstDataPoint, setIsFirstDataPoint] = useState(true);
 
   useEffect(() => {
-    // Skip checking if the sensor data is all zeros (initial state)
-    if (sensorData.ph === 0 && sensorData.temperature === 0 && sensorData.tds === 0) {
+    // Skip checking if the sensor data appears to be initial/invalid data
+    // Check if we have actual valid data
+    const isValidData = 
+      sensorData.ph > 0 && 
+      sensorData.temperature > 0 && 
+      sensorData.tds > 0;
+    
+    // Skip initial data point to avoid notifications on first load
+    if (isFirstDataPoint && isValidData) {
+      setIsFirstDataPoint(false);
+      console.log("[ThresholdChecker] Initial valid data point received, skipping notifications");
+      return;
+    }
+    
+    // Skip if data appears invalid
+    if (!isValidData) {
       return;
     }
     
@@ -64,7 +79,7 @@ const ThresholdChecker: React.FC<ThresholdCheckerProps> = ({ sensorData, thresho
     if (sensorData.waterLevel === "low" && canSendNotification('low-water')) {
       addNotification('warning', 'Low Water Level', 'Water level is low, please refill the reservoir');
     }
-  }, [sensorData, thresholds, addNotification, lastNotificationTime]);
+  }, [sensorData, thresholds, addNotification, lastNotificationTime, isFirstDataPoint]);
 
   return null; // This component doesn't render anything
 };
