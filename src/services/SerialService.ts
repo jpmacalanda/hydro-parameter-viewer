@@ -19,7 +19,6 @@ class SerialService {
   private rawCallbacks: RawMessageCallback[] = [];
   private errorCallbacks: ErrorCallback[] = [];
   private isRaspberryPi: boolean = false;
-  private autoDetectHardware: boolean = true; // Default to auto-detect
   private useMockData: boolean = false;
   private securityRestricted: boolean = false;
   private usingWebSocket: boolean = false;
@@ -29,12 +28,6 @@ class SerialService {
   constructor() {
     // Check if we're running on the Raspberry Pi
     this.isRaspberryPi = this.checkIfRaspberryPi();
-                         
-    // Load auto-detect preference from localStorage if it exists
-    const savedPreference = localStorage.getItem('autoDetectHardware');
-    if (savedPreference !== null) {
-      this.autoDetectHardware = savedPreference === 'true';
-    }
     
     // Check if Web Serial API is restricted by security policy
     this.checkSecurityRestrictions();
@@ -50,7 +43,7 @@ class SerialService {
         });
         
         // Attempt to reconnect or fallback to mock data
-        if (this.autoDetectHardware && customEvent.detail.message.includes("timeout")) {
+        if (customEvent.detail.message.includes("timeout")) {
           console.log("WebSocket timeout detected, attempting to reconnect or fallback");
           this.reconnectOrFallback();
         }
@@ -93,16 +86,6 @@ class SerialService {
   // Check if Web Serial API is restricted by security policy
   get isSecurityRestricted(): boolean {
     return this.securityRestricted;
-  }
-  
-  // Get/Set auto-detect hardware setting
-  get autoDetect(): boolean {
-    return this.autoDetectHardware;
-  }
-  
-  set autoDetect(value: boolean) {
-    this.autoDetectHardware = value;
-    localStorage.setItem('autoDetectHardware', value.toString());
   }
   
   // Check if we're currently using mock data
@@ -206,13 +189,10 @@ class SerialService {
           return true;
         } catch (wsError) {
           console.error("WebSocket connection failed:", wsError);
-          if (this.autoDetectHardware) {
-            // Fall back to mock data if auto-detect is enabled
-            this.useMockData = true;
-            this.setupMockData();
-            return true;
-          }
-          throw new Error("Could not establish WebSocket connection and auto-detect is disabled");
+          // Fall back to mock data
+          this.useMockData = true;
+          this.setupMockData();
+          return true;
         }
       }
       
@@ -239,36 +219,16 @@ class SerialService {
           return true;
         } catch (wsError) {
           console.log("WebSocket connection failed, using mock data...", wsError);
-          if (this.autoDetectHardware) {
-            this.useMockData = true;
-            this.setupMockData();
-            return true;
-          } else {
-            throw new Error("Web Serial API is restricted and WebSocket connection failed");
-          }
+          this.useMockData = true;
+          this.setupMockData();
+          return true;
         }
       }
       
       // If we're on the Raspberry Pi, try to use WebSocket or direct Serial connection
       if (this.isRaspberryPi) {
-        if (!this.autoDetectHardware) {
-          // If auto-detect is disabled, respect the user's preference
-          if (!this.isSupported) {
-            throw new Error("Web Serial API is not supported in this browser");
-          }
-          
-          // Try to connect via Web Serial API
-          this.port = await this.requestSerialPort();
-          if (this.port) {
-            await this.setupSerialConnection();
-            return true;
-          }
-          
-          throw new Error("Could not obtain serial port");
-        }
-        
-        // Auto-detect is enabled, try WebSocket first
-        console.log("On Raspberry Pi with auto-detect enabled, trying WebSocket first");
+        // Try WebSocket first
+        console.log("On Raspberry Pi, trying WebSocket first");
         try {
           webSocketService.connect();
           webSocketService.onData((data) => {
@@ -297,22 +257,17 @@ class SerialService {
               }
             } catch (serialError) {
               console.error("Serial connection failed:", serialError);
-              // Don't automatically fall through to mock data
-              if (this.autoDetectHardware) {
-                this.useMockData = true;
-                this.setupMockData();
-                return true;
-              }
-              throw serialError;
+              // Fall back to mock data
+              this.useMockData = true;
+              this.setupMockData();
+              return true;
             }
           }
           
-          // If both WebSocket and Serial failed and auto-detect is enabled, use mock data
-          if (this.autoDetectHardware) {
-            this.useMockData = true;
-            this.setupMockData();
-            return true;
-          }
+          // If both WebSocket and Serial failed, use mock data
+          this.useMockData = true;
+          this.setupMockData();
+          return true;
         }
       } else {
         // Not on Raspberry Pi, try direct Serial connection if supported
@@ -326,45 +281,33 @@ class SerialService {
             }
           } catch (serialError) {
             console.error("Failed to connect to hardware:", serialError);
-            if (!this.autoDetectHardware) {
-              throw serialError; // Only throw if not auto-detecting
-            }
-            // Only fall through to mock data if auto-detecting is enabled
+            // Fall back to mock data
             this.useMockData = true;
             this.setupMockData();
             return true;
           }
-        } else if (!this.isSupported && this.autoDetectHardware) {
-          // If Web Serial isn't supported and auto-detect is on, use mock data
+        } else if (!this.isSupported) {
+          // If Web Serial isn't supported, use mock data
           console.log("Web Serial API not supported, using mock data instead");
           this.useMockData = true;
           this.setupMockData();
           return true;
-        } else {
-          // Web Serial not supported and auto-detect is off
-          throw new Error("Web Serial API is not supported in this browser");
         }
       }
       
-      // If we reach here and auto-detect is enabled, fall back to mock data
-      if (this.autoDetectHardware) {
-        console.log("Using mock data instead of real hardware.");
-        this.useMockData = true;
-        this.setupMockData();
-        return true;
-      }
+      // If we reach here, fall back to mock data
+      console.log("Using mock data instead of real hardware.");
+      this.useMockData = true;
+      this.setupMockData();
+      return true;
       
-      throw new Error("Connection not possible");
     } catch (error) {
       console.error("Failed to connect:", error);
       
-      if (this.autoDetectHardware) {
-        this.useMockData = true;
-        this.setupMockData();
-        return true;
-      }
-      
-      return false;
+      // If all else fails, use mock data
+      this.useMockData = true;
+      this.setupMockData();
+      return true;
     }
   }
   
@@ -432,8 +375,7 @@ class SerialService {
     
     // If auto-detecting and this is a timeout error with WebSocket,
     // try to reconnect or fallback to mock data
-    if (this.autoDetectHardware && 
-        this.usingWebSocket && 
+    if (this.usingWebSocket && 
         error.message.includes("timeout")) {
       
       this.reconnectOrFallback();

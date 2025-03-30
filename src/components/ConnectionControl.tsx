@@ -1,3 +1,4 @@
+
 import React, { useState, useEffect } from 'react';
 import { Button } from "@/components/ui/button";
 import serialService from "@/services/SerialService";
@@ -6,7 +7,6 @@ import { toast } from "sonner";
 import { Alert, AlertTitle, AlertDescription } from "@/components/ui/alert";
 import { Info, Zap, RefreshCcw, Shield, Wifi, WifiOff, Usb, Bug, AlertTriangle } from "lucide-react";
 import { Label } from "@/components/ui/label";
-import { Switch } from "@/components/ui/switch";
 import { Tooltip, TooltipContent, TooltipProvider, TooltipTrigger } from "@/components/ui/tooltip";
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@/components/ui/select";
 import { SerialPortInfo } from "@/services/types/serial.types";
@@ -23,7 +23,6 @@ const ConnectionControl: React.FC<ConnectionControlProps> = ({
   dataReceived = false
 }) => {
   const [connecting, setConnecting] = useState(false);
-  const [autoDetect, setAutoDetect] = useState(serialService.autoDetect);
   const [usingMockData, setUsingMockData] = useState(false);
   const [usingWebSocket, setUsingWebSocket] = useState(false);
   const [availablePorts, setAvailablePorts] = useState<SerialPortInfo[]>([]);
@@ -115,7 +114,7 @@ const ConnectionControl: React.FC<ConnectionControlProps> = ({
       }
       
       let success = false;
-      if (!autoDetect && selectedPortId) {
+      if (selectedPortId) {
         const selectedPort = availablePorts.find(p => p.id === selectedPortId);
         console.log("Using selected port:", selectedPort);
         if (selectedPort) {
@@ -124,7 +123,7 @@ const ConnectionControl: React.FC<ConnectionControlProps> = ({
           success = await serialService.connect();
         }
       } else {
-        console.log("Using auto-detect connection");
+        console.log("Using automatic connection");
         success = await serialService.connect();
       }
       
@@ -176,11 +175,6 @@ const ConnectionControl: React.FC<ConnectionControlProps> = ({
     } catch (error) {
       console.error("Disconnection error:", error);
     }
-  };
-  
-  const handleAutoDetectChange = (checked: boolean) => {
-    setAutoDetect(checked);
-    serialService.autoDetect = checked;
   };
   
   const getConnectionTypeText = () => {
@@ -239,7 +233,6 @@ const ConnectionControl: React.FC<ConnectionControlProps> = ({
             For best results on Raspberry Pi:
             <ul className="list-disc list-inside mt-2">
               <li>Use HTTP instead of HTTPS (no certificate issues)</li>
-              <li>Enable auto-detect hardware (recommended)</li>
               <li>Ensure the Arduino is connected to USB port</li>
               <li>Make sure your user has permission to access /dev/ttyUSB0</li>
             </ul>
@@ -286,14 +279,14 @@ const ConnectionControl: React.FC<ConnectionControlProps> = ({
             {isRaspberryPi ? (
               <>Press "Connect to Arduino" to use WebSocket connection instead.</>
             ) : (
-              <>Try opening this app in a new Chrome or Edge window, or enable auto-detect to use mock data.</>
+              <>Try opening this app in a new Chrome or Edge window.</>
             )}
           </AlertDescription>
         </Alert>
       )}
       
       <div className="flex flex-col space-y-4 sm:space-y-0">
-        {isWebSerialSupported && !isSecurityRestricted && !autoDetect && !isRemoteAccess && (
+        {isWebSerialSupported && !isSecurityRestricted && !isRemoteAccess && (
           <div className="flex flex-col space-y-2 sm:flex-row sm:items-center sm:space-y-0 sm:space-x-4 mb-4">
             <div className="flex-1">
               <Label htmlFor="port-select" className="mb-2 block">Serial Port</Label>
@@ -341,7 +334,7 @@ const ConnectionControl: React.FC<ConnectionControlProps> = ({
                 onClick={handleConnect}
                 variant="default"
                 className="bg-hydro-blue hover:bg-hydro-blue/90"
-                disabled={connecting || (!autoDetect && !selectedPortId && availablePorts.length > 0 && !isSecurityRestricted && !isRemoteAccess)}
+                disabled={connecting || (!selectedPortId && availablePorts.length > 0 && !isSecurityRestricted && !isRemoteAccess)}
               >
                 {connecting ? 'Connecting...' : 'Connect to Arduino'}
               </Button>
@@ -363,28 +356,6 @@ const ConnectionControl: React.FC<ConnectionControlProps> = ({
                 {getConnectionTypeText()}
               </span>
             </div>
-          </div>
-          
-          <div className="flex items-center space-x-2">
-            <Switch 
-              id="auto-detect" 
-              checked={autoDetect}
-              onCheckedChange={handleAutoDetectChange}
-              disabled={isRemoteAccess}
-            />
-            <Label htmlFor="auto-detect" className={isRemoteAccess ? "text-gray-400" : ""}>Auto-detect hardware</Label>
-            <TooltipProvider>
-              <Tooltip>
-                <TooltipTrigger asChild>
-                  <Info className="h-4 w-4 text-gray-400 cursor-help" />
-                </TooltipTrigger>
-                <TooltipContent>
-                  {isRemoteAccess 
-                    ? "When accessing remotely, WebSocket connection is always used"
-                    : "When enabled, the system will automatically switch between real Arduino data and mock data"}
-                </TooltipContent>
-              </Tooltip>
-            </TooltipProvider>
           </div>
         </div>
       </div>
