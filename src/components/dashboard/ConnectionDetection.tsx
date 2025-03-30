@@ -1,6 +1,8 @@
 
-import { useEffect } from 'react';
+import { useEffect, useState } from 'react';
 import { useNotifications } from '@/context/NotificationsContext';
+import serialService from '@/services/SerialService';
+import { AlertTriangle, Wifi } from 'lucide-react';
 
 interface ConnectionDetectionProps {
   connected: boolean;
@@ -14,7 +16,10 @@ const ConnectionDetection: React.FC<ConnectionDetectionProps> = ({
   isRemoteAccess 
 }) => {
   const { addNotification } = useNotifications();
+  const [reconnectAttempts, setReconnectAttempts] = useState(0);
+  const [reconnectTimer, setReconnectTimer] = useState<NodeJS.Timeout | null>(null);
   
+  // Handle remote access notifications
   useEffect(() => {
     if (isRemoteAccess) {
       addNotification(
@@ -38,6 +43,7 @@ const ConnectionDetection: React.FC<ConnectionDetectionProps> = ({
     }
   }, [isRemoteAccess, addNotification]);
 
+  // Handle no data scenario when connected
   useEffect(() => {
     if (connected && !lastDataReceived) {
       const timer = setTimeout(() => {
@@ -56,6 +62,90 @@ const ConnectionDetection: React.FC<ConnectionDetectionProps> = ({
       return () => clearTimeout(timer);
     }
   }, [connected, lastDataReceived, addNotification]);
+
+  // Handle disconnection detection and reconnection attempts
+  useEffect(() => {
+    let connectionCheckInterval: NodeJS.Timeout | null = null;
+    
+    // Only start monitoring if we're connected
+    if (connected) {
+      // Check for connection issues every 5 seconds
+      connectionCheckInterval = setInterval(() => {
+        const now = new Date();
+        const lastDataTime = lastDataReceived ? lastDataReceived.getTime() : 0;
+        const timeSinceLastData = now.getTime() - lastDataTime;
+        
+        // If no data for 15 seconds, consider it disconnected
+        if (lastDataReceived && timeSinceLastData > 15000) {
+          console.log("Connection appears lost, no data for 15+ seconds");
+          
+          // Only show one notification per disconnection
+          if (reconnectAttempts === 0) {
+            addNotification(
+              'warning',
+              'Arduino Connection Lost',
+              'No data received from Arduino for 15+ seconds. Attempting to reconnect automatically...'
+            );
+          }
+          
+          // Attempt reconnection
+          if (!reconnectTimer) {
+            const newAttempts = reconnectAttempts + 1;
+            setReconnectAttempts(newAttempts);
+            
+            // Add a notification with attempt count (but limit frequency)
+            if (newAttempts === 1 || newAttempts % 5 === 0) {  // Show for 1st, 5th, 10th attempts
+              addNotification(
+                'info',
+                'Reconnection Attempt',
+                `Trying to reconnect to Arduino (Attempt ${newAttempts})`
+              );
+            }
+            
+            // Attempt to reconnect to serial service
+            console.log(`Attempting to reconnect (attempt ${newAttempts})`);
+            serialService.disconnect().then(() => {
+              // Wait a moment before reconnecting
+              const timer = setTimeout(() => {
+                serialService.connect().then(success => {
+                  if (success) {
+                    addNotification(
+                      'success',
+                      'Arduino Reconnected',
+                      'Successfully reconnected to Arduino device'
+                    );
+                    setReconnectAttempts(0);
+                    setReconnectTimer(null);
+                  } else {
+                    setReconnectTimer(null); // Allow another attempt
+                  }
+                });
+              }, 3000);
+              
+              setReconnectTimer(timer as unknown as NodeJS.Timeout);
+            });
+          }
+        } else if (lastDataReceived && reconnectAttempts > 0) {
+          // We've got data and were in reconnect mode - connection restored!
+          setReconnectAttempts(0);
+          if (reconnectTimer) {
+            clearTimeout(reconnectTimer);
+            setReconnectTimer(null);
+          }
+        }
+      }, 5000);
+    }
+    
+    return () => {
+      if (connectionCheckInterval) {
+        clearInterval(connectionCheckInterval);
+      }
+      if (reconnectTimer) {
+        clearTimeout(reconnectTimer);
+        setReconnectTimer(null);
+      }
+    };
+  }, [connected, lastDataReceived, reconnectAttempts, reconnectTimer, addNotification]);
 
   return null; // This component doesn't render anything
 };
