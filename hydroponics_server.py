@@ -3,11 +3,14 @@ import asyncio
 import serial
 import websockets
 import json
+import ssl
+import os
 
 # Configure these settings:
 SERIAL_PORT = "/dev/ttyUSB0"  # Change to your Arduino's serial port
 BAUD_RATE = 9600
 WS_PORT = 8081
+USE_SSL = os.environ.get('USE_SSL', 'false').lower() == 'true'
 
 # Initialize serial connection
 try:
@@ -62,8 +65,27 @@ async def read_serial():
         await asyncio.sleep(1)
 
 async def main():
-    server = await websockets.serve(handle_client, "0.0.0.0", WS_PORT)
-    print(f"WebSocket server running on port {WS_PORT}")
+    ssl_context = None
+    
+    if USE_SSL:
+        print("Setting up secure WebSocket server with SSL")
+        ssl_context = ssl.SSLContext(ssl.PROTOCOL_TLS_SERVER)
+        try:
+            ssl_context.load_cert_chain('/etc/nginx/ssl/nginx.crt', '/etc/nginx/ssl/nginx.key')
+            print("SSL certificates loaded successfully")
+        except Exception as e:
+            print(f"Error loading SSL certificates: {e}")
+            print("Falling back to non-secure WebSocket")
+            ssl_context = None
+    
+    server = await websockets.serve(
+        handle_client, 
+        "0.0.0.0", 
+        WS_PORT, 
+        ssl=ssl_context
+    )
+    
+    print(f"WebSocket server running on port {WS_PORT} {'with SSL' if ssl_context else 'without SSL'}")
     serial_task = asyncio.create_task(read_serial())
     await server.wait_closed()
 
