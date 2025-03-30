@@ -20,47 +20,54 @@ RUN mkdir -p /app/logs && chmod 777 /app/logs
 # Copy all Python scripts
 COPY *.py .
 
-# Add a helper script to check for device availability
-RUN echo '#!/bin/sh \n\
-echo "Checking for Arduino device..." \n\
-if [ ! -c /dev/ttyUSB0 ]; then \n\
-  echo "WARNING: Arduino device not found at /dev/ttyUSB0" \n\
-  echo "The server will start with mock data enabled." \n\
-  export MOCK_DATA=true \n\
-elif [ ! -w /dev/ttyUSB0 ]; then \n\
-  echo "WARNING: Arduino device at /dev/ttyUSB0 is not writable" \n\
-  echo "Attempting to fix permissions with chmod..." \n\
-  chmod 666 /dev/ttyUSB0 2>/dev/null \n\
-  if [ ! -w /dev/ttyUSB0 ]; then \n\
-    echo "Failed to make device writable. The server will start with mock data enabled." \n\
-    export MOCK_DATA=true \n\
-  else \n\
-    echo "Successfully fixed permissions for /dev/ttyUSB0" \n\
-    export MOCK_DATA=false \n\
-  fi \n\
-fi \n\
-# Check if device is used by another process \n\
-if lsof /dev/ttyUSB0 > /dev/null 2>&1; then \n\
-  echo "INFO: Serial port /dev/ttyUSB0 is currently in use by another process" \n\
-  lsof /dev/ttyUSB0 | grep -v "COMMAND" \n\
-  echo "Checking if it\'s our own process..." \n\
-  if lsof /dev/ttyUSB0 | grep -q "serial_monitor"; then \n\
-    echo "Serial port is used by our serial_monitor.py - this is fine" \n\
-    export MOCK_DATA=false \n\
-  else \n\
-    echo "The server will start with mock data enabled." \n\
-    export MOCK_DATA=true \n\
-  fi \n\
-fi \n\
-# Final check \n\
-if [ "$MOCK_DATA" = "false" ] && [ -c /dev/ttyUSB0 ] && [ -w /dev/ttyUSB0 ]; then \n\
-  echo "Arduino device is available and writable at /dev/ttyUSB0" \n\
-  echo "Using real data from Arduino" \n\
-else \n\
-  echo "Using mock data mode" \n\
-fi \n\
-exec python3 hydroponics_server.py \n\
-' > /app/entrypoint.sh && chmod +x /app/entrypoint.sh
+# Create entrypoint script in a safer way using cat
+RUN cat > /app/entrypoint.sh << 'EOF'
+#!/bin/sh
+echo "Checking for Arduino device..."
+if [ ! -c /dev/ttyUSB0 ]; then
+  echo "WARNING: Arduino device not found at /dev/ttyUSB0"
+  echo "The server will start with mock data enabled."
+  export MOCK_DATA=true
+elif [ ! -w /dev/ttyUSB0 ]; then
+  echo "WARNING: Arduino device at /dev/ttyUSB0 is not writable"
+  echo "Attempting to fix permissions with chmod..."
+  chmod 666 /dev/ttyUSB0 2>/dev/null
+  if [ ! -w /dev/ttyUSB0 ]; then
+    echo "Failed to make device writable. The server will start with mock data enabled."
+    export MOCK_DATA=true
+  else
+    echo "Successfully fixed permissions for /dev/ttyUSB0"
+    export MOCK_DATA=false
+  fi
+fi
 
-# Run the helper script which will then run the server
+# Check if device is used by another process
+if lsof /dev/ttyUSB0 > /dev/null 2>&1; then
+  echo "INFO: Serial port /dev/ttyUSB0 is currently in use by another process"
+  lsof /dev/ttyUSB0 | grep -v "COMMAND"
+  echo "Checking if it's our own process..."
+  if lsof /dev/ttyUSB0 | grep -q "serial_monitor"; then
+    echo "Serial port is used by our serial_monitor.py - this is fine"
+    export MOCK_DATA=false
+  else
+    echo "The server will start with mock data enabled."
+    export MOCK_DATA=true
+  fi
+fi
+
+# Final check
+if [ "$MOCK_DATA" = "false" ] && [ -c /dev/ttyUSB0 ] && [ -w /dev/ttyUSB0 ]; then
+  echo "Arduino device is available and writable at /dev/ttyUSB0"
+  echo "Using real data from Arduino"
+else
+  echo "Using mock data mode"
+fi
+
+exec python3 hydroponics_server.py
+EOF
+
+# Make the entrypoint script executable
+RUN chmod +x /app/entrypoint.sh
+
+# Run the server
 CMD ["/app/entrypoint.sh"]
