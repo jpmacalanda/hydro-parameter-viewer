@@ -118,17 +118,38 @@ const DashboardContent: React.FC<DashboardProps> = ({
         dataReceived={lastDataReceived !== null}
       />
 
-      <SensorGrid sensorData={sensorData} thresholds={thresholds} />
-
-      <MonitoringPanel 
-        params={sensorData}
-        phHistory={phHistory}
-        tempHistory={tempHistory}
-        tdsHistory={tdsHistory}
-        showGraphs={showGraphs}
-        setShowGraphs={setShowGraphs}
-        thresholds={thresholds}
-      />
+      {/* Display either SensorGrid or MonitoringPanel based on showGraphs */}
+      {showGraphs ? (
+        <MonitoringPanel 
+          params={sensorData}
+          phHistory={phHistory}
+          tempHistory={tempHistory}
+          tdsHistory={tdsHistory}
+          showGraphs={showGraphs}
+          setShowGraphs={setShowGraphs}
+          thresholds={thresholds}
+        />
+      ) : (
+        <div className="mb-4">
+          <div className="flex items-center space-x-2 mb-4">
+            <label htmlFor="show-graphs" className="flex items-center cursor-pointer">
+              <div className="relative">
+                <input
+                  id="show-graphs"
+                  type="checkbox"
+                  className="sr-only"
+                  checked={showGraphs}
+                  onChange={e => setShowGraphs(e.target.checked)}
+                />
+                <div className="block bg-gray-300 w-14 h-8 rounded-full"></div>
+                <div className={`dot absolute left-1 top-1 bg-white w-6 h-6 rounded-full transition ${showGraphs ? 'transform translate-x-6' : ''}`}></div>
+              </div>
+              <div className="ml-3 text-gray-700 font-medium">Show Historical Graphs</div>
+            </label>
+          </div>
+          <SensorGrid sensorData={sensorData} thresholds={thresholds} />
+        </div>
+      )}
       
       <SystemInfoPanel 
         connected={connected} 
