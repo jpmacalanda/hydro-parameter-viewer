@@ -25,11 +25,10 @@ const TDSDisplay: React.FC<TDSDisplayProps> = ({
   const tdsMax = 2000;
   
   // Calculate progress percentage (0-100)
-  const progressPercent = value === 0 ? 0 : (value / tdsMax) * 100;
+  const progressPercent = (value / tdsMax) * 100;
   
   // Determine status based on TDS value
   const getStatus = () => {
-    if (value === 0) return "unavailable";
     if (value < optimalMin) return "low";
     if (value > optimalMax) return "high";
     return "normal";
@@ -40,7 +39,6 @@ const TDSDisplay: React.FC<TDSDisplayProps> = ({
   // Set colors based on TDS status
   const getColor = () => {
     switch (status) {
-      case "unavailable": return "hydro-unavailable";
       case "low": return "hydro-ph-low";
       case "high": return "hydro-ph-high";
       case "normal": return "hydro-ph-normal";
@@ -49,7 +47,6 @@ const TDSDisplay: React.FC<TDSDisplayProps> = ({
   
   const statusText = () => {
     switch (status) {
-      case "unavailable": return "No Data";
       case "low": return "Too Low";
       case "high": return "Too High";
       case "normal": return "Optimal";
@@ -69,7 +66,7 @@ const TDSDisplay: React.FC<TDSDisplayProps> = ({
       </CardHeader>
       <CardContent>
         <div className="flex justify-between items-center mb-2">
-          <span className="text-3xl font-bold">{value === 0 ? "-" : `${value} PPM`}</span>
+          <span className="text-3xl font-bold">{value} PPM</span>
           <span className={`px-2 py-1 rounded-full text-xs font-medium text-white bg-${getColor()}`}>
             {statusText()}
           </span>

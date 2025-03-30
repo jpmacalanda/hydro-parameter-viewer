@@ -1,20 +1,15 @@
 
 import React from 'react';
 import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
-import { BarChart } from "lucide-react";
+import { Droplet, BarChart } from "lucide-react";
 
 interface WaterLevelDisplayProps {
   level: 'low' | 'medium' | 'high';
 }
 
 const WaterLevelDisplay: React.FC<WaterLevelDisplayProps> = ({ level }) => {
-  // Check if data is available
-  const isDataAvailable = level !== null && level !== undefined;
-  
   // Set color based on water level
   const getColor = () => {
-    if (!isDataAvailable) return "hydro-unavailable";
-    
     switch (level) {
       case "low": return "hydro-water-low";
       case "medium": return "hydro-water-medium";
@@ -23,8 +18,6 @@ const WaterLevelDisplay: React.FC<WaterLevelDisplayProps> = ({ level }) => {
   };
   
   const statusText = () => {
-    if (!isDataAvailable) return "No Data";
-    
     switch (level) {
       case "low": return "Low";
       case "medium": return "Medium";
@@ -33,8 +26,6 @@ const WaterLevelDisplay: React.FC<WaterLevelDisplayProps> = ({ level }) => {
   };
   
   const getDescription = () => {
-    if (!isDataAvailable) return "No water level data is available.";
-    
     switch (level) {
       case "low": return "Water level is critical. Add water soon!";
       case "medium": return "Water level is acceptable but not optimal.";
@@ -44,8 +35,6 @@ const WaterLevelDisplay: React.FC<WaterLevelDisplayProps> = ({ level }) => {
   
   // Calculate fill heights for the water level indicator
   const getFillHeight = () => {
-    if (!isDataAvailable) return "h-0";
-    
     switch (level) {
       case "low": return "h-1/4";
       case "medium": return "h-1/2";
@@ -66,7 +55,7 @@ const WaterLevelDisplay: React.FC<WaterLevelDisplayProps> = ({ level }) => {
       </CardHeader>
       <CardContent>
         <div className="flex justify-between items-center mb-4">
-          <span className="text-2xl font-bold">{isDataAvailable ? level : "-"}</span>
+          <span className="text-2xl font-bold capitalize">{level}</span>
           <span className={`px-2 py-1 rounded-full text-xs font-medium text-white bg-${getColor()}`}>
             {statusText()}
           </span>

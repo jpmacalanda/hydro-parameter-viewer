@@ -25,11 +25,10 @@ const TemperatureDisplay: React.FC<TemperatureDisplayProps> = ({
   const tempMax = 40;
   
   // Calculate progress percentage (0-100)
-  const progressPercent = value === 0 ? 0 : (value / tempMax) * 100;
+  const progressPercent = (value / tempMax) * 100;
   
   // Determine status based on temperature value
   const getStatus = () => {
-    if (value === 0) return "unavailable";
     if (value < optimalMin) return "low";
     if (value > optimalMax) return "high";
     return "normal";
@@ -40,16 +39,14 @@ const TemperatureDisplay: React.FC<TemperatureDisplayProps> = ({
   // Set color based on temperature status
   const getColor = () => {
     switch (status) {
-      case "unavailable": return "text-gray-400";
-      case "low": return "text-hydro-temp-low";
-      case "high": return "text-hydro-temp-high";
-      case "normal": return "text-hydro-temp-normal";
+      case "low": return "hydro-temp-low";
+      case "high": return "hydro-temp-high";
+      case "normal": return "hydro-temp-normal";
     }
   };
   
   const statusText = () => {
     switch (status) {
-      case "unavailable": return "No Data";
       case "low": return "Too Cold";
       case "high": return "Too Hot";
       case "normal": return "Optimal";
@@ -63,14 +60,14 @@ const TemperatureDisplay: React.FC<TemperatureDisplayProps> = ({
           <span>Water Temperature</span>
           <Thermometer 
             size={24} 
-            className={`${getColor()} animate-pulse-slow`} 
+            className={`text-${getColor()} animate-pulse-slow`} 
           />
         </CardTitle>
       </CardHeader>
       <CardContent>
         <div className="flex justify-between items-center mb-2">
-          <span className="text-3xl font-bold">{value === 0 ? "-" : `${value.toFixed(1)}°C`}</span>
-          <span className={`px-2 py-1 rounded-full text-xs font-medium text-white bg-${getColor().replace('text-', '')}`}>
+          <span className="text-3xl font-bold">{value.toFixed(1)}°C</span>
+          <span className={`px-2 py-1 rounded-full text-xs font-medium text-white bg-${getColor()}`}>
             {statusText()}
           </span>
         </div>

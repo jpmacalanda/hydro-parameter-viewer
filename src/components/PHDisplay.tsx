@@ -25,11 +25,10 @@ const PHDisplay: React.FC<PHDisplayProps> = ({
   const phMax = 14;
   
   // Calculate progress percentage (0-100)
-  const progressPercent = value === 0 ? 0 : (value / phMax) * 100;
+  const progressPercent = (value / phMax) * 100;
   
   // Determine status based on pH value
   const getStatus = () => {
-    if (value === 0) return "unavailable";
     if (value < optimalMin) return "low";
     if (value > optimalMax) return "high";
     return "normal";
@@ -40,7 +39,6 @@ const PHDisplay: React.FC<PHDisplayProps> = ({
   // Set color based on status
   const getColor = () => {
     switch (status) {
-      case "unavailable": return "text-gray-400";
       case "low": return "text-red-500";
       case "high": return "text-yellow-500";
       case "normal": return "text-green-500";
@@ -49,7 +47,6 @@ const PHDisplay: React.FC<PHDisplayProps> = ({
   
   const getBgColor = () => {
     switch (status) {
-      case "unavailable": return "bg-gray-400";
       case "low": return "bg-red-500";
       case "high": return "bg-yellow-500";
       case "normal": return "bg-green-500";
@@ -58,7 +55,6 @@ const PHDisplay: React.FC<PHDisplayProps> = ({
   
   const statusText = () => {
     switch (status) {
-      case "unavailable": return "No Data";
       case "low": return "Too Acidic";
       case "high": return "Too Alkaline";
       case "normal": return "Optimal";
@@ -78,7 +74,7 @@ const PHDisplay: React.FC<PHDisplayProps> = ({
       </CardHeader>
       <CardContent>
         <div className="flex justify-between items-center mb-2">
-          <span className="text-3xl font-bold">{value === 0 ? "-" : value.toFixed(1)}</span>
+          <span className="text-3xl font-bold">{value.toFixed(1)}</span>
           <span className={`px-2 py-1 rounded-full text-xs font-medium text-white ${getBgColor()}`}>
             {statusText()}
           </span>
