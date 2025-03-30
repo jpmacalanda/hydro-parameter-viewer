@@ -55,6 +55,27 @@ services:
       retries: 3
       start_period: 40s
 
+  serial-monitor:
+    build:
+      context: .
+      dockerfile: Dockerfile.monitor
+    container_name: hydroponics-serial-monitor
+    image: hydro-parameter-viewer-serial-monitor
+    # Use the same Arduino device
+    devices:
+      - "${SERIAL_DEVICE:-/dev/null}:/dev/ttyUSB0"
+    environment:
+      - SERIAL_PORT=/dev/ttyUSB0
+      - BAUD_RATE=9600
+      - MOCK_DATA=${MOCK_DATA:-true}
+    restart: unless-stopped
+    # No need for network connection - this container just logs
+    logging:
+      driver: "json-file"
+      options:
+        max-size: "10m"
+        max-file: "3"
+
 networks:
   hydroponics-network:
     driver: bridge
