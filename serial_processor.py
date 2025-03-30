@@ -1,3 +1,4 @@
+
 import asyncio
 import serial
 import json
@@ -6,6 +7,7 @@ import random
 import logging
 import websockets
 from typing import Set, Dict, Union, Any
+import os
 
 import settings
 
@@ -25,11 +27,24 @@ def initialize_serial():
         logger.info("Running in MOCK DATA mode - will generate simulated sensor readings")
         return None
     
+    # First check if the serial port device exists
+    if not os.path.exists(settings.SERIAL_PORT):
+        logger.error(f"Serial port {settings.SERIAL_PORT} does not exist")
+        logger.error("Check if Arduino is connected and using the correct port")
+        return None
+    
     # Check if port is used by other processes
     port_busy, pids, cmds = settings.check_serial_port_used_by_process()
     if port_busy:
-        logger.warning("Serial port is busy, falling back to mock data mode")
-        return None
+        logger.warning(f"Serial port {settings.SERIAL_PORT} is busy with process(es): {pids}")
+        logger.warning(f"Command(s): {cmds}")
+        
+        # Check if it's our own monitoring process and ignore if so
+        if any("serial_monitor.py" in cmd for cmd in cmds):
+            logger.info("Port is being used by our serial_monitor.py - this is fine")
+        else:
+            logger.warning("Serial port is busy with other processes, falling back to mock data mode")
+            return None
         
     # Try connecting to the serial port with retries
     max_retries = 5
@@ -119,7 +134,7 @@ async def generate_mock_data():
         data = {
             "ph": round(ph, 1),
             "temperature": round(temp, 1),
-            "waterLevel": water_levels[water_idx],
+            "waterLevel": water_levels[water_idx].upper(),  # Match the Arduino's uppercase format
             "tds": int(tds)
         }
         
@@ -139,12 +154,33 @@ async def read_serial():
     buffer = ""
     last_message_time = time.time()
     no_data_warning_sent = False
+    reconnect_attempts = 0
+    max_reconnect_attempts = 5
 
     while True:
         current_time = time.time()
         
-        if ser and ser.in_waiting > 0:
-            try:
+        # Check if we need to reconnect
+        if not ser or not ser.is_open:
+            if reconnect_attempts < max_reconnect_attempts:
+                logger.warning(f"Serial connection lost. Attempting to reconnect ({reconnect_attempts+1}/{max_reconnect_attempts})...")
+                ser = initialize_serial()
+                reconnect_attempts += 1
+                if not ser:
+                    logger.error("Failed to reconnect to serial port")
+                    await asyncio.sleep(5)  # Wait before next attempt
+                    continue
+                else:
+                    logger.info("Successfully reconnected to serial port")
+                    reconnect_attempts = 0
+            else:
+                logger.error("Maximum reconnection attempts reached. Switching to mock data.")
+                settings.MOCK_DATA = True
+                await generate_mock_data()
+                return
+        
+        try:
+            if ser and ser.in_waiting > 0:
                 # Read directly from serial
                 data = ser.read(ser.in_waiting).decode('utf-8')
                 buffer += data
@@ -186,7 +222,8 @@ async def read_serial():
                                 except ValueError:
                                     logger.error(f"Invalid temperature value: {value}")
                             elif key == 'water' or key == 'waterlevel':
-                                parsed_data['waterLevel'] = value
+                                # Convert to uppercase to match the format shown in the logs
+                                parsed_data['waterLevel'] = value.upper()
                             elif key == 'tds':
                                 try:
                                     parsed_data['tds'] = int(value)
@@ -199,14 +236,23 @@ async def read_serial():
                     else:
                         logger.warning(f"Incomplete or invalid data: {parsed_data}")
                         logger.warning(f"Expected format: pH:6.20,temp:23.20,water:medium,tds:652")
-            except Exception as e:
-                logger.error(f"Error reading/processing serial data: {e}")
+            elif (current_time - last_message_time) > 10 and not no_data_warning_sent:
+                # No data from Arduino for 10 seconds
+                logger.warning("No data received from Arduino in 10 seconds!")
+                logger.warning("Check if Arduino is properly connected and sending data")
+                no_data_warning_sent = True
                 
-        elif (current_time - last_message_time) > 10 and not no_data_warning_sent:
-            # No data from Arduino for 10 seconds
-            logger.warning("No data received from Arduino in 10 seconds!")
-            logger.warning("Check if Arduino is properly connected and sending data")
-            no_data_warning_sent = True
+        except serial.SerialException as e:
+            logger.error(f"Serial port error: {e}")
+            # Close the serial port and attempt to reconnect on next loop
+            try:
+                if ser and ser.is_open:
+                    ser.close()
+            except:
+                pass
+            ser = None
+        except Exception as e:
+            logger.error(f"Error reading/processing serial data: {e}")
                 
         await asyncio.sleep(0.1)  # Check more frequently
 

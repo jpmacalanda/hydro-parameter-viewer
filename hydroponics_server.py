@@ -24,14 +24,23 @@ logger.info(f"- Log level: {LOG_LEVEL}")
 # Check if the port is already in use
 settings.check_port_availability()
 
-# List available serial ports
-settings.check_serial_port()
+# Check if the Arduino is connected
+arduino_detected = settings.check_serial_port()
 
 # Initialize serial connection
 ser = initialize_serial()
 if not ser and not settings.MOCK_DATA:
+    if arduino_detected:
+        logger.warning("Arduino detected but serial connection failed. Check permissions and port availability.")
+        logger.warning("Try: sudo chmod 666 /dev/ttyUSB0")
+        logger.warning("If using Docker, make sure the device is properly mapped with --device=/dev/ttyUSB0:/dev/ttyUSB0")
+    else:
+        logger.warning("No Arduino detected. Falling back to MOCK DATA mode")
+    
     settings.MOCK_DATA = True
     logger.info("Serial connection failed, falling back to MOCK DATA mode")
+else:
+    logger.info("Using real Arduino data from serial port")
 
 async def main():
     ssl_context = None
@@ -83,6 +92,7 @@ async def main():
         # Add a separate HTTP server
         import aiohttp
         from aiohttp import web
+        import time
         
         async def start_http_server():
             app = web.Application()
@@ -94,6 +104,7 @@ async def main():
                 data = {
                     "status": "running",
                     "mockData": settings.MOCK_DATA,
+                    "arduinoConnected": ser is not None and not settings.MOCK_DATA,
                     "time": time.time()
                 }
                 return web.json_response(data)
@@ -160,8 +171,6 @@ async def main():
 
 if __name__ == "__main__":
     try:
-        # Import time module for the HTTP server
-        import time
         logger.info("Starting WebSocket server main process")
         asyncio.run(main())
     except KeyboardInterrupt:

@@ -192,6 +192,11 @@ class WebSocketService {
               data = JSON.parse(event.data);
               console.log("[WebSocket] Received data:", data);
               
+              // Convert waterLevel to uppercase if needed to match Arduino format (HIGH, MEDIUM, LOW)
+              if (data.waterLevel && typeof data.waterLevel === 'string') {
+                data.waterLevel = data.waterLevel.toLowerCase();
+              }
+              
               // Validate data structure before proceeding
               if (!this.isValidData(data)) {
                 console.warn("[WebSocket] Received invalid data structure:", data);
@@ -202,7 +207,7 @@ class WebSocketService {
               if (typeof data.ph !== 'number' || 
                   typeof data.temperature !== 'number' || 
                   typeof data.tds !== 'number' ||
-                  !['low', 'medium', 'high'].includes(data.waterLevel)) {
+                  !['low', 'medium', 'high'].includes(data.waterLevel.toLowerCase())) {
                 console.warn("[WebSocket] Data contains invalid types:", data);
                 return;
               }

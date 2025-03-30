@@ -44,13 +44,16 @@ async def websocket_handler(websocket, path):
     
     connected_clients.add(websocket)
     try:
-        # Send initial success message
+        # Send initial data based on the current state of the system
         try:
+            from settings import MOCK_DATA
+            
             initial_data = {
                 "ph": 7.0,
                 "temperature": 25.0,
-                "waterLevel": "medium",
-                "tds": 650
+                "waterLevel": "MEDIUM",
+                "tds": 650,
+                "mockData": MOCK_DATA
             }
             await websocket.send(json.dumps(initial_data))
             logger.info(f"Sent initial data to {client_ip}: {initial_data}")

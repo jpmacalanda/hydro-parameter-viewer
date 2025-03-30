@@ -22,17 +22,42 @@ COPY *.py .
 
 # Add a helper script to check for device availability
 RUN echo '#!/bin/sh \n\
-if [ ! -c /dev/ttyUSB0 ] || [ ! -w /dev/ttyUSB0 ]; then \n\
-  echo "WARNING: Arduino device not found or not accessible at /dev/ttyUSB0" \n\
+echo "Checking for Arduino device..." \n\
+if [ ! -c /dev/ttyUSB0 ]; then \n\
+  echo "WARNING: Arduino device not found at /dev/ttyUSB0" \n\
   echo "The server will start with mock data enabled." \n\
   export MOCK_DATA=true \n\
+elif [ ! -w /dev/ttyUSB0 ]; then \n\
+  echo "WARNING: Arduino device at /dev/ttyUSB0 is not writable" \n\
+  echo "Attempting to fix permissions with chmod..." \n\
+  chmod 666 /dev/ttyUSB0 2>/dev/null \n\
+  if [ ! -w /dev/ttyUSB0 ]; then \n\
+    echo "Failed to make device writable. The server will start with mock data enabled." \n\
+    export MOCK_DATA=true \n\
+  else \n\
+    echo "Successfully fixed permissions for /dev/ttyUSB0" \n\
+    export MOCK_DATA=false \n\
+  fi \n\
 fi \n\
 # Check if device is used by another process \n\
 if lsof /dev/ttyUSB0 > /dev/null 2>&1; then \n\
-  echo "WARNING: Serial port /dev/ttyUSB0 is currently in use by another process" \n\
-  echo "Run \"lsof /dev/ttyUSB0\" to see which process is using it" \n\
-  echo "The server will start with mock data enabled." \n\
-  export MOCK_DATA=true \n\
+  echo "INFO: Serial port /dev/ttyUSB0 is currently in use by another process" \n\
+  lsof /dev/ttyUSB0 | grep -v "COMMAND" \n\
+  echo "Checking if it\'s our own process..." \n\
+  if lsof /dev/ttyUSB0 | grep -q "serial_monitor"; then \n\
+    echo "Serial port is used by our serial_monitor.py - this is fine" \n\
+    export MOCK_DATA=false \n\
+  else \n\
+    echo "The server will start with mock data enabled." \n\
+    export MOCK_DATA=true \n\
+  fi \n\
+fi \n\
+# Final check \n\
+if [ "$MOCK_DATA" = "false" ] && [ -c /dev/ttyUSB0 ] && [ -w /dev/ttyUSB0 ]; then \n\
+  echo "Arduino device is available and writable at /dev/ttyUSB0" \n\
+  echo "Using real data from Arduino" \n\
+else \n\
+  echo "Using mock data mode" \n\
 fi \n\
 exec python3 hydroponics_server.py \n\
 ' > /app/entrypoint.sh && chmod +x /app/entrypoint.sh
