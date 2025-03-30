@@ -1,4 +1,3 @@
-
 import React, { useState, useEffect } from 'react';
 import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
 import { 
@@ -12,13 +11,16 @@ import {
 import { Tabs, TabsContent, TabsList, TabsTrigger } from "@/components/ui/tabs";
 import { AreaChart, Area, XAxis, YAxis, CartesianGrid, Tooltip, ResponsiveContainer, Legend } from 'recharts';
 import { Calendar, ChartBar, Clock } from "lucide-react";
+import { SerialData } from '@/services/types/serial.types';
 
-// Simulated data - in a real app, this would come from a database or API
+interface StatisticsViewProps {
+  sensorData: SerialData;
+}
+
 const generateDailyData = () => {
   const data = [];
   const today = new Date();
   
-  // Generate data for last 24 hours
   for (let i = 0; i < 24; i++) {
     const time = new Date(today);
     time.setHours(today.getHours() - 24 + i);
@@ -38,7 +40,6 @@ const generateWeeklyData = () => {
   const data = [];
   const today = new Date();
   
-  // Generate data for last 7 days
   for (let i = 0; i < 7; i++) {
     const date = new Date(today);
     date.setDate(today.getDate() - 6 + i);
@@ -54,12 +55,11 @@ const generateWeeklyData = () => {
   return data;
 };
 
-const StatisticsView: React.FC = () => {
+const StatisticsView: React.FC<StatisticsViewProps> = ({ sensorData }) => {
   const [statsTab, setStatsTab] = useState<"daily" | "weekly">("daily");
   const [dailyData, setDailyData] = useState(generateDailyData());
   const [weeklyData, setWeeklyData] = useState(generateWeeklyData());
   
-  // Calculate averages, mins, maxes for daily data
   const dailyStats = {
     ph: {
       avg: Number((dailyData.reduce((sum, item) => sum + item.ph, 0) / dailyData.length).toFixed(1)),
@@ -78,7 +78,6 @@ const StatisticsView: React.FC = () => {
     }
   };
   
-  // Calculate trends for weekly data
   const weeklyStats = {
     ph: {
       trend: weeklyData[weeklyData.length - 1].avgPh > weeklyData[0].avgPh ? "increasing" : "decreasing",
