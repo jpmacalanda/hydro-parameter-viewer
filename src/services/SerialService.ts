@@ -53,22 +53,16 @@ class SerialService {
       // Set up log parser to get real data from logs
       console.log("[DOCKER-LOG][SerialService] Setting up log parser");
       logParserService.onData((data) => {
-        // Add timestamp at the web application level
-        const timestampedData = {
-          ...data,
-          timestamp: new Date().toISOString()
-        };
-        
-        console.log("[DOCKER-LOG][SerialService] Received data from log parser with web timestamp:", JSON.stringify(timestampedData));
+        console.log("[DOCKER-LOG][SerialService] Received data from log parser:", JSON.stringify(data));
         
         // Forward raw messages to any registered raw callbacks
         this.rawCallbacks.forEach((callback) => {
-          callback(JSON.stringify(timestampedData));
+          callback(JSON.stringify(data));
         });
         
         // Forward parsed data to data callbacks
         this.callbacks.forEach((callback) => {
-          callback(timestampedData);
+          callback(data);
         });
       });
       

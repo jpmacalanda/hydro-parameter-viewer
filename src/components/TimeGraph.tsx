@@ -1,3 +1,4 @@
+
 import React from 'react';
 import { 
   LineChart, 
@@ -41,20 +42,6 @@ const TimeGraph: React.FC<TimeGraphProps> = ({
     return `${value}${unit}`;
   };
 
-  const formatTime = (time: string) => {
-    if (!time) return '';
-    
-    try {
-      if (time.includes('T') && time.includes('Z')) {
-        const date = new Date(time);
-        return date.toLocaleTimeString([], { hour: '2-digit', minute: '2-digit' });
-      }
-      return time;
-    } catch (error) {
-      return time;
-    }
-  };
-
   return (
     <Card className="mt-4">
       <CardContent className="pt-4">
@@ -64,7 +51,7 @@ const TimeGraph: React.FC<TimeGraphProps> = ({
             <XAxis 
               dataKey="time" 
               fontSize={10}
-              tickFormatter={formatTime}
+              tickFormatter={(value) => value}
             />
             <YAxis 
               domain={[min !== undefined ? min : 'auto', max !== undefined ? max : 'auto']}
@@ -74,7 +61,7 @@ const TimeGraph: React.FC<TimeGraphProps> = ({
             <ChartTooltip
               content={
                 <ChartTooltipContent 
-                  labelFormatter={(value) => `Time: ${formatTime(value)}`}
+                  labelFormatter={(value) => `Time: ${value}`}
                 />
               }
             />

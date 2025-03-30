@@ -6,7 +6,6 @@ export interface SerialData {
   temperature: number;
   waterLevel: 'low' | 'medium' | 'high';
   tds: number;
-  timestamp?: string; // Make timestamp optional
 }
 
 export type DataCallback = (data: SerialData) => void;

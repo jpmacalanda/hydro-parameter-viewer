@@ -17,8 +17,7 @@ function App() {
     ph: 7.0,
     temperature: 25.0,
     waterLevel: "medium",
-    tds: 650,
-    timestamp: new Date().toISOString()
+    tds: 650
   });
   const [dataHistory, setDataHistory] = useState<SerialData[]>([]);
   const [thresholds, setThresholds] = useState({
@@ -31,6 +30,7 @@ function App() {
   });
   const [dataReceived, setDataReceived] = useState(false);
   
+  // Update features state to remove useWebSocket
   const [features, setFeatures] = useState({
     showStatistics: true,
     showThresholds: true,
@@ -52,27 +52,9 @@ function App() {
       logParserService.onData(handleSensorData);
       logParserService.startPolling();
       
-      // Set a timeout to force dataReceived to true if no real data comes in
-      const forceDataTimeout = setTimeout(() => {
-        if (!dataReceived) {
-          console.log("[DOCKER-LOG][App] No data received yet, forcing dataReceived=true");
-          setDataReceived(true);
-          
-          // Add a sample data point to history to ensure UI updates
-          handleSensorData({
-            ph: 7.0,
-            temperature: 25.0,
-            waterLevel: "medium",
-            tds: 650,
-            timestamp: new Date().toISOString()
-          });
-        }
-      }, 1000);
-      
       return () => {
         console.log("[DOCKER-LOG][App] Cleaning up log parser (connected state cleanup)");
         logParserService.stopPolling();
-        clearTimeout(forceDataTimeout);
       };
     }
     
@@ -81,7 +63,7 @@ function App() {
       console.log("[DOCKER-LOG][App] Cleaning up log parser (general cleanup)");
       logParserService.stopPolling();
     };
-  }, [isConnected, dataReceived]);
+  }, [isConnected]);
   
   // Log current state values
   useEffect(() => {
@@ -104,24 +86,13 @@ function App() {
 
   const handleSensorData = (data: SerialData) => {
     console.log("[DOCKER-LOG][App] Received new sensor data:", JSON.stringify(data));
-    
-    // Ensure the data has a timestamp at the application level
-    if (!data.timestamp) {
-      data.timestamp = new Date().toISOString();
-    }
-    
     setSensorData(data);
     setDataHistory(prev => {
       const newHistory = [...prev, data];
       console.log("[DOCKER-LOG][App] Updated data history, new length:", newHistory.length);
       return newHistory;
     });
-    
-    // Always set dataReceived to true when we get data
-    if (!dataReceived) {
-      console.log("[DOCKER-LOG][App] First data received, setting dataReceived=true");
-      setDataReceived(true);
-    }
+    setDataReceived(true);
   };
 
   return (

@@ -1,3 +1,4 @@
+
 import { SerialData } from './types/serial.types';
 import { toast } from "sonner";
 
@@ -7,9 +8,13 @@ class LogParserService {
   private callbacks: LogParserCallback[] = [];
   private polling: boolean = false;
   private pollingInterval: ReturnType<typeof setInterval> | null = null;
+  private lastProcessedTimestamp: string | null = null;
   private lastReceivedData: SerialData | null = null;
   private pollCounter: number = 0;
   
+  // For debugging real vs mock data
+  private useMockData: boolean = false;
+
   /**
    * Start polling for logs and parse them for sensor data
    */
@@ -23,7 +28,7 @@ class LogParserService {
     
     console.log("[DOCKER-LOG][LogParserService] Started polling for sensor data");
     
-    // Poll every 200ms for faster updates
+    // Poll every 500ms for faster updates
     this.pollingInterval = setInterval(() => {
       this.fetchAndParseLogs();
       this.pollCounter++;
@@ -32,7 +37,7 @@ class LogParserService {
       if (this.pollCounter % 20 === 0) {
         console.log(`[DOCKER-LOG][LogParserService] Polling iteration ${this.pollCounter}`);
       }
-    }, 200); // Faster polling interval
+    }, 500); // Reduced from 2000ms to 500ms for faster updates
     
     // Do an initial fetch immediately
     this.fetchAndParseLogs();
@@ -59,8 +64,8 @@ class LogParserService {
    */
   private async fetchAndParseLogs(): Promise<void> {
     try {
-      // Get the logs
-      const logs = this.getRealLogFormat();
+      // Get the logs - using real log format based on provided examples
+      const logs = this.useMockData ? this.generateMockSerialLogFormat() : this.getRealLogFormat();
       
       // Parse the logs for sensor data
       const sensorData = this.extractSensorDataFromLogs(logs);
@@ -70,51 +75,27 @@ class LogParserService {
         // Get the most recent reading
         const latestData = sensorData[sensorData.length - 1];
         
-        // Always provide data on each poll to ensure dataReceived flag is set
+        // Skip if it's the same data we've already processed
+        if (this.lastReceivedData && 
+            this.lastReceivedData.ph === latestData.ph &&
+            this.lastReceivedData.temperature === latestData.temperature &&
+            this.lastReceivedData.waterLevel === latestData.waterLevel &&
+            this.lastReceivedData.tds === latestData.tds) {
+          return;
+        }
+        
+        // Store this data as the last received
         this.lastReceivedData = latestData;
         console.log("[DOCKER-LOG][LogParserService] New data:", JSON.stringify(latestData));
         
         // Update listeners immediately with the latest data
         this.notifyCallbacks(latestData);
-      } else {
-        console.log("[DOCKER-LOG][LogParserService] No valid sensor data found in logs");
-        
-        // Generate a sample data point if we don't have data yet
-        if (!this.lastReceivedData) {
-          console.log("[DOCKER-LOG][LogParserService] Generating sample data point");
-          const sampleData: SerialData = {
-            ph: 7.0,
-            temperature: 25.0,
-            waterLevel: "medium",
-            tds: 650
-          };
-          this.lastReceivedData = sampleData;
-          this.notifyCallbacks(sampleData);
-        } else {
-          // If we have last received data, reuse it to keep UI updated
-          console.log("[DOCKER-LOG][LogParserService] Reusing last received data");
-          this.notifyCallbacks(this.lastReceivedData);
-        }
       }
     } catch (error) {
       console.error('[DOCKER-LOG][LogParserService] Error fetching logs:', error);
-      
-      // Even on error, generate a sample data point if we don't have data yet
-      if (!this.lastReceivedData) {
-        console.log("[DOCKER-LOG][LogParserService] Generating sample data point after error");
-        const sampleData: SerialData = {
-          ph: 7.0,
-          temperature: 25.0,
-          waterLevel: "medium",
-          tds: 650
-        };
-        this.lastReceivedData = sampleData;
-        this.notifyCallbacks(sampleData);
-      } else {
-        // If we have last received data, reuse it to keep UI updated
-        console.log("[DOCKER-LOG][LogParserService] Reusing last received data after error");
-        this.notifyCallbacks(this.lastReceivedData);
-      }
+      toast.error('Failed to parse serial monitor logs', {
+        description: 'Could not extract sensor data from logs'
+      });
     }
   }
 
@@ -131,7 +112,7 @@ class LogParserService {
     for (let i = lines.length - 1; i >= 0; i--) {
       const line = lines[i];
       
-      // Only process lines with sensor data - ignore timestamp info
+      // Only process lines with sensor data
       if ((line.includes('SERIAL DATA:') || 
            line.includes('SENSOR_DATA') || 
            line.includes('JSON_DATA=') || 
@@ -140,7 +121,21 @@ class LogParserService {
            !line.includes('Skipping')) {
         
         try {
-          // Extract the data from the line, ignoring any timestamps
+          // Extract timestamp to avoid processing the same data twice
+          const timestampMatch = line.match(/^(.*?) - INFO/);
+          const timestamp = timestampMatch ? timestampMatch[1] : null;
+          
+          // Skip if we've already processed this timestamp
+          if (timestamp && timestamp === this.lastProcessedTimestamp) {
+            continue;
+          }
+          
+          // Store the timestamp for future reference
+          if (timestamp) {
+            this.lastProcessedTimestamp = timestamp;
+          }
+          
+          // Extract the data from the line
           let dataStr = "";
           let jsonData = null;
           
@@ -222,17 +217,6 @@ class LogParserService {
       }
     }
     
-    // Always return at least one result
-    if (results.length === 0) {
-      // Return a default data point if no valid data was found
-      results.push({
-        ph: 7.0,
-        temperature: 25.0,
-        waterLevel: "medium",
-        tds: 650
-      });
-    }
-    
     return results;
   }
 
@@ -240,13 +224,32 @@ class LogParserService {
    * Get real log format based on the provided examples
    */
   private getRealLogFormat(): string {
-    // This is data that matches the real log format observed, but without timestamp dependency
-    return `INFO - SERIAL DATA: pH:6.34,temp:28.06,water:HIGH,tds:1164
-INFO - Parsed data: {"ph": 6.34, "temperature": 28.06, "waterLevel": "HIGH", "tds": 1164}
-INFO - JSON parsed_data={"ph": 6.34, "temperature": 28.06, "waterLevel": "HIGH", "tds": 1164}
-INFO - JSON_DATA={"ph": 6.34, "temperature": 28.06, "waterLevel": "HIGH", "tds": 1164}
-INFO - SENSOR_DATA pH:6.34,temp:28.06,water:HIGH,tds:1164
-INFO - pH:6.34,temp:28.06,water:HIGH,tds:1164`;
+    const now = new Date().toISOString().replace('T', ' ').substr(0, 19);
+    
+    // This is data that matches the real log format observed
+    return `${now} - INFO - SERIAL DATA: pH:6.34,temp:28.06,water:HIGH,tds:1164
+${now} - INFO - Parsed data: {"ph": 6.34, "temperature": 28.06, "waterLevel": "HIGH", "tds": 1164}
+${now} - INFO - JSON parsed_data={"ph": 6.34, "temperature": 28.06, "waterLevel": "HIGH", "tds": 1164}
+${now} - INFO - JSON_DATA={"ph": 6.34, "temperature": 28.06, "waterLevel": "HIGH", "tds": 1164}
+${now} - INFO - SENSOR_DATA pH:6.34,temp:28.06,water:HIGH,tds:1164
+${now} - INFO - pH:6.34,temp:28.06,water:HIGH,tds:1164`;
+  }
+
+  /**
+   * Generate mock serial logs - only used for testing
+   */
+  private generateMockSerialLogFormat(): string {
+    const now = new Date().toISOString().replace('T', ' ').substr(0, 19);
+    const ph = (Math.random() * 2 + 5).toFixed(2); // Random pH between 5-7
+    const temp = (Math.random() * 2 + 27).toFixed(2); // Random temp between 27-29
+    const tds = Math.floor(1000 + Math.random() * 200); // Random TDS between 1000-1200
+    
+    return `${now} - INFO - SERIAL DATA: pH:${ph},temp:${temp},water:HIGH,tds:${tds}
+${now} - INFO - Parsed data: {"ph": ${ph}, "temperature": ${temp}, "waterLevel": "HIGH", "tds": ${tds}}
+${now} - INFO - JSON parsed_data={"ph": ${ph}, "temperature": ${temp}, "waterLevel": "HIGH", "tds": ${tds}}
+${now} - INFO - JSON_DATA={"ph": ${ph}, "temperature": ${temp}, "waterLevel": "HIGH", "tds": ${tds}}
+${now} - INFO - SENSOR_DATA pH:${ph},temp:${temp},water:HIGH,tds:${tds}
+${now} - INFO - pH:${ph},temp:${temp},water:HIGH,tds:${tds}`;
   }
 
   /**
