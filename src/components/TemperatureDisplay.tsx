@@ -6,7 +6,7 @@ import { Thermometer } from "lucide-react";
 import TimeGraph from './TimeGraph';
 
 interface TemperatureDisplayProps {
-  value: number;
+  value: number | null;
   history?: Array<{time: string; value: number}>;
   showGraph?: boolean;
   optimalMin?: number;
@@ -25,11 +25,11 @@ const TemperatureDisplay: React.FC<TemperatureDisplayProps> = ({
   const tempMax = 40;
   
   // Calculate progress percentage (0-100)
-  const progressPercent = value === 0 ? 0 : (value / tempMax) * 100;
+  const progressPercent = value === null || value === 0 ? 0 : (value / tempMax) * 100;
   
   // Determine status based on temperature value
   const getStatus = () => {
-    if (value === 0) return "unavailable";
+    if (value === null || value === 0) return "unavailable";
     if (value < optimalMin) return "low";
     if (value > optimalMax) return "high";
     return "normal";
@@ -69,7 +69,9 @@ const TemperatureDisplay: React.FC<TemperatureDisplayProps> = ({
       </CardHeader>
       <CardContent>
         <div className="flex justify-between items-center mb-2">
-          <span className="text-3xl font-bold">{value === 0 ? "-" : `${value.toFixed(1)}°C`}</span>
+          <span className="text-3xl font-bold">
+            {value === null || value === 0 ? "-" : `${value.toFixed(1)}°C`}
+          </span>
           <span className={`px-2 py-1 rounded-full text-xs font-medium text-white bg-${getColor().replace('text-', '')}`}>
             {statusText()}
           </span>
