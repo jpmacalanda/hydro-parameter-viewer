@@ -4,18 +4,34 @@ import { Card, CardContent, CardHeader, CardTitle, CardDescription } from "@/com
 import { Button } from "@/components/ui/button";
 import { Switch } from "@/components/ui/switch";
 import { Label } from "@/components/ui/label";
-import { Archive, FileText } from "lucide-react";
+import { FileText, Download, Trash2 } from "lucide-react";
 import { toast } from "sonner";
+import { 
+  AlertDialog,
+  AlertDialogAction,
+  AlertDialogCancel,
+  AlertDialogContent,
+  AlertDialogDescription,
+  AlertDialogFooter,
+  AlertDialogHeader,
+  AlertDialogTitle,
+} from "@/components/ui/alert-dialog";
 import { SerialData } from "@/services/types/serial.types";
 import { convertToCSV, downloadCSV, getFormattedDate } from "@/utils/csvUtils";
 
-interface ArchiveSettingsProps {
+interface ExportDataSettingsProps {
   sensorData: SerialData;
   dataHistory?: SerialData[];
+  onClearData?: () => void;
 }
 
-const ArchiveSettings: React.FC<ArchiveSettingsProps> = ({ sensorData, dataHistory = [] }) => {
+const ExportDataSettings: React.FC<ExportDataSettingsProps> = ({ 
+  sensorData, 
+  dataHistory = [],
+  onClearData = () => {} 
+}) => {
   const [includeTimestamp, setIncludeTimestamp] = useState(true);
+  const [showClearDialog, setShowClearDialog] = useState(false);
   
   // Handle download of current data point
   const handleDownloadCurrent = () => {
@@ -38,17 +54,26 @@ const ArchiveSettings: React.FC<ArchiveSettingsProps> = ({ sensorData, dataHisto
       description: `Saved as ${filename} with ${dataToExport.length} records`
     });
   };
+  
+  // Handle clearing of historical data
+  const handleClearData = () => {
+    onClearData();
+    setShowClearDialog(false);
+    toast.success("Data history cleared", {
+      description: "All recorded sensor data has been cleared"
+    });
+  };
 
   return (
     <div className="space-y-6">
       <Card>
         <CardHeader>
           <CardTitle className="flex items-center gap-2">
-            <Archive size={20} />
-            Archive Data
+            <Download size={20} />
+            Export Data
           </CardTitle>
           <CardDescription>
-            Download your sensor data in CSV format for record keeping or analysis
+            Export your sensor data in CSV format for record keeping or analysis
           </CardDescription>
         </CardHeader>
         <CardContent className="space-y-6">
@@ -81,6 +106,17 @@ const ArchiveSettings: React.FC<ArchiveSettingsProps> = ({ sensorData, dataHisto
             </Button>
           </div>
           
+          <div className="pt-4 border-t border-gray-200">
+            <Button 
+              variant="destructive" 
+              className="w-full flex items-center gap-2" 
+              onClick={() => setShowClearDialog(true)}
+            >
+              <Trash2 size={16} />
+              Clear Recorded Data
+            </Button>
+          </div>
+          
           <div className="text-sm text-muted-foreground">
             <p className="font-semibold">Note:</p>
             <p>CSV files can be opened in Excel, Google Sheets, or any text editor.</p>
@@ -88,8 +124,26 @@ const ArchiveSettings: React.FC<ArchiveSettingsProps> = ({ sensorData, dataHisto
           </div>
         </CardContent>
       </Card>
+      
+      <AlertDialog open={showClearDialog} onOpenChange={setShowClearDialog}>
+        <AlertDialogContent>
+          <AlertDialogHeader>
+            <AlertDialogTitle>Clear recorded data?</AlertDialogTitle>
+            <AlertDialogDescription>
+              This will remove all historical sensor readings collected during this session.
+              This action cannot be undone.
+            </AlertDialogDescription>
+          </AlertDialogHeader>
+          <AlertDialogFooter>
+            <AlertDialogCancel>Cancel</AlertDialogCancel>
+            <AlertDialogAction onClick={handleClearData} className="bg-red-600 hover:bg-red-700">
+              Clear Data
+            </AlertDialogAction>
+          </AlertDialogFooter>
+        </AlertDialogContent>
+      </AlertDialog>
     </div>
   );
 };
 
-export default ArchiveSettings;
+export default ExportDataSettings;

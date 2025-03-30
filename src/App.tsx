@@ -87,11 +87,20 @@ function App() {
     console.log("[DOCKER-LOG][App] Received new sensor data:", JSON.stringify(data));
     setSensorData(data);
     setDataHistory(prev => {
-      const newHistory = [...prev, data];
+      // Limit history to 100 entries
+      const newHistory = [...prev, data].slice(-100);
       console.log("[DOCKER-LOG][App] Updated data history, new length:", newHistory.length);
       return newHistory;
     });
     setDataReceived(true);
+  };
+  
+  const handleClearDataHistory = () => {
+    console.log("[DOCKER-LOG][App] Clearing data history");
+    setDataHistory([]);
+    toast.success("Data history cleared", {
+      description: "All recorded sensor data has been cleared"
+    });
   };
 
   return (
