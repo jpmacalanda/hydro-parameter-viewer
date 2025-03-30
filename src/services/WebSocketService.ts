@@ -18,6 +18,7 @@ class WebSocketService {
   private lastMessageTime = 0;
   private healthCheckInterval: ReturnType<typeof setInterval> | null = null;
   private reconnectTimer: ReturnType<typeof setTimeout> | null = null;
+  private debugMode = true; // Set to true to enable verbose logging
   
   connect(serverUrl: string = this.getDefaultWebSocketUrl()) {
     if (this.reconnectTimer) {
@@ -41,6 +42,15 @@ class WebSocketService {
         this.reconnectAttempts = 0;
         this.lastMessageTime = Date.now();
         
+        // Dispatch connection success event
+        const event = new CustomEvent('connection-success', { 
+          detail: { 
+            message: "WebSocket Connected", 
+            description: "Successfully connected to the server"
+          } 
+        });
+        document.dispatchEvent(event);
+        
         if (this.ws && this.ws.readyState === WebSocket.OPEN) {
           this.ws.send('ping');
           console.log('Sent initial ping');
@@ -54,12 +64,12 @@ class WebSocketService {
           this.lastMessageTime = Date.now();
           
           if (event.data === "healthy") {
-            console.log("Received health check response");
+            if (this.debugMode) console.log("Received health check response");
             return;
           }
           
           if (event.data === "pong") {
-            console.log("Received pong response");
+            if (this.debugMode) console.log("Received pong response");
             return;
           }
           
@@ -67,17 +77,26 @@ class WebSocketService {
           let data;
           if (typeof event.data === 'string') {
             if (event.data.trim() === '') {
-              console.log("Received empty message, ignoring");
+              if (this.debugMode) console.log("Received empty message, ignoring");
               return;
             }
             
             try {
               data = JSON.parse(event.data);
-              console.log("Received data:", data);
+              if (this.debugMode) console.log("Received data:", data);
               
               // Validate data structure before proceeding
               if (!this.isValidData(data)) {
                 console.warn("Received invalid data structure:", data);
+                return;
+              }
+              
+              // Additional validation for data types
+              if (typeof data.ph !== 'number' || 
+                  typeof data.temperature !== 'number' || 
+                  typeof data.tds !== 'number' ||
+                  !['low', 'medium', 'high'].includes(data.waterLevel)) {
+                console.warn("Data contains invalid types:", data);
                 return;
               }
               
@@ -129,7 +148,7 @@ class WebSocketService {
         if (this.isConnected && this.ws && this.ws.readyState === WebSocket.OPEN) {
           try {
             this.ws.send('ping');
-            console.log('Sent ping message');
+            if (this.debugMode) console.log('Sent ping message');
           } catch (error) {
             console.error('Error sending ping:', error);
             clearInterval(pingInterval);
@@ -148,11 +167,14 @@ class WebSocketService {
   }
   
   private isValidData(data: any): boolean {
-    // Basic validation to ensure the data has required fields
+    // Basic validation to ensure the data has all required fields with correct types
     return (
       data && 
       typeof data === 'object' &&
-      ('ph' in data || 'temperature' in data || 'waterLevel' in data || 'tds' in data)
+      'ph' in data && 
+      'temperature' in data && 
+      'waterLevel' in data && 
+      'tds' in data
     );
   }
   

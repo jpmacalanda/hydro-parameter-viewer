@@ -4,6 +4,7 @@ import { Tabs, TabsContent, TabsList, TabsTrigger } from "@/components/ui/tabs";
 import { toast } from "sonner";
 import { Activity, Gauge, Settings, Terminal } from "lucide-react";
 import serialService from '@/services/SerialService';
+import webSocketService from '@/services/WebSocketService';
 import ConnectionControl from './ConnectionControl';
 import ThresholdSettings from './ThresholdSettings';
 import CalibrationSettings from './CalibrationSettings';
@@ -45,42 +46,143 @@ const Dashboard: React.FC = () => {
   const [activeTab, setActiveTab] = useState("monitor");
   const [thresholds, setThresholds] = useState(initialThresholds);
   const [calibration, setCalibration] = useState(initialCalibration);
+  const [dataReceived, setDataReceived] = useState(false);
   
   const [phHistory, setPhHistory] = useState<Array<{time: string; value: number}>>([]);
   const [tempHistory, setTempHistory] = useState<Array<{time: string; value: number}>>([]);
   const [tdsHistory, setTdsHistory] = useState<Array<{time: string; value: number}>>([]);
   
   useEffect(() => {
-    serialService.onData((data) => {
-      const calibratedData = {
-        ...data,
-        ph: parseFloat((data.ph * calibration.phCalibrationConstant).toFixed(1)),
-        tds: Math.round(data.tds * calibration.tdsCalibrationFactor)
-      };
+    // Try WebSocket connection first for Raspberry Pi
+    const setupConnection = async () => {
+      const hostname = window.location.hostname;
+      const isRpi = hostname === 'raspberrypi.local' || 
+                    hostname.startsWith('192.168.') ||
+                    hostname === 'localhost';
       
-      setParams(calibratedData);
-      const now = new Date();
-      setLastUpdate(now);
-      
-      const timeStr = now.toLocaleTimeString([], { hour: '2-digit', minute: '2-digit', second: '2-digit' });
-      
-      setPhHistory(prev => {
-        const newHistory = [...prev, { time: timeStr, value: calibratedData.ph }];
-        return newHistory.slice(-MAX_HISTORY_LENGTH);
+      if (isRpi) {
+        console.log("Running on Raspberry Pi, trying WebSocket connection first");
+        webSocketService.onData((data) => {
+          const calibratedData = {
+            ...data,
+            ph: parseFloat((data.ph * calibration.phCalibrationConstant).toFixed(1)),
+            tds: Math.round(data.tds * calibration.tdsCalibrationFactor)
+          };
+          
+          console.log("WebSocket data received:", calibratedData);
+          setParams(calibratedData);
+          setDataReceived(true);
+          const now = new Date();
+          setLastUpdate(now);
+          
+          const timeStr = now.toLocaleTimeString([], { hour: '2-digit', minute: '2-digit', second: '2-digit' });
+          
+          setPhHistory(prev => {
+            const newHistory = [...prev, { time: timeStr, value: calibratedData.ph }];
+            return newHistory.slice(-MAX_HISTORY_LENGTH);
+          });
+          
+          setTempHistory(prev => {
+            const newHistory = [...prev, { time: timeStr, value: calibratedData.temperature }];
+            return newHistory.slice(-MAX_HISTORY_LENGTH);
+          });
+          
+          setTdsHistory(prev => {
+            const newHistory = [...prev, { time: timeStr, value: calibratedData.tds }];
+            return newHistory.slice(-MAX_HISTORY_LENGTH);
+          });
+        });
+        
+        try {
+          const connected = webSocketService.connect();
+          if (connected) {
+            setConnected(true);
+            console.log("WebSocket connection established");
+          }
+        } catch (error) {
+          console.error("WebSocket connection failed:", error);
+          // Fall back to serial service
+          setupSerialService();
+        }
+      } else {
+        // Not on Raspberry Pi, use regular serial service
+        setupSerialService();
+      }
+    };
+    
+    // Setup the serial service data handling
+    const setupSerialService = () => {
+      serialService.onData((data) => {
+        const calibratedData = {
+          ...data,
+          ph: parseFloat((data.ph * calibration.phCalibrationConstant).toFixed(1)),
+          tds: Math.round(data.tds * calibration.tdsCalibrationFactor)
+        };
+        
+        console.log("Serial data received:", calibratedData);
+        setParams(calibratedData);
+        setDataReceived(true);
+        const now = new Date();
+        setLastUpdate(now);
+        
+        const timeStr = now.toLocaleTimeString([], { hour: '2-digit', minute: '2-digit', second: '2-digit' });
+        
+        setPhHistory(prev => {
+          const newHistory = [...prev, { time: timeStr, value: calibratedData.ph }];
+          return newHistory.slice(-MAX_HISTORY_LENGTH);
+        });
+        
+        setTempHistory(prev => {
+          const newHistory = [...prev, { time: timeStr, value: calibratedData.temperature }];
+          return newHistory.slice(-MAX_HISTORY_LENGTH);
+        });
+        
+        setTdsHistory(prev => {
+          const newHistory = [...prev, { time: timeStr, value: calibratedData.tds }];
+          return newHistory.slice(-MAX_HISTORY_LENGTH);
+        });
       });
-      
-      setTempHistory(prev => {
-        const newHistory = [...prev, { time: timeStr, value: calibratedData.temperature }];
-        return newHistory.slice(-MAX_HISTORY_LENGTH);
+    };
+    
+    // Set up listeners for connection events
+    const handleConnectionSuccess = (event: Event) => {
+      const customEvent = event as CustomEvent;
+      toast.success(customEvent.detail.message, {
+        description: customEvent.detail.description,
       });
-      
-      setTdsHistory(prev => {
-        const newHistory = [...prev, { time: timeStr, value: calibratedData.tds }];
-        return newHistory.slice(-MAX_HISTORY_LENGTH);
+      setConnected(true);
+    };
+    
+    document.addEventListener('connection-success', handleConnectionSuccess);
+    
+    // Initialize connection
+    setupConnection();
+    
+    // Listen for WebSocket errors
+    const handleWebSocketError = (event: Event) => {
+      const customEvent = event as CustomEvent;
+      toast.error(customEvent.detail.message, {
+        description: "Check server connection and logs",
       });
-    });
+    };
+    
+    document.addEventListener('websocket-error', handleWebSocketError);
+    
+    // Load saved settings
+    const savedThresholds = LocalStorageService.loadThresholds();
+    if (savedThresholds) {
+      setThresholds(savedThresholds);
+    }
+    
+    const savedCalibration = LocalStorageService.loadCalibration();
+    if (savedCalibration) {
+      setCalibration(savedCalibration);
+    }
     
     return () => {
+      document.removeEventListener('connection-success', handleConnectionSuccess);
+      document.removeEventListener('websocket-error', handleWebSocketError);
+      webSocketService.disconnect();
       serialService.disconnect();
     };
   }, [calibration]);
@@ -104,18 +206,6 @@ const Dashboard: React.FC = () => {
     LocalStorageService.saveCalibration(newCalibration);
   };
   
-  useEffect(() => {
-    const savedThresholds = LocalStorageService.loadThresholds();
-    if (savedThresholds) {
-      setThresholds(savedThresholds);
-    }
-    
-    const savedCalibration = LocalStorageService.loadCalibration();
-    if (savedCalibration) {
-      setCalibration(savedCalibration);
-    }
-  }, []);
-  
   return (
     <div className="container mx-auto p-4 max-w-6xl">
       <header className="mb-6">
@@ -125,6 +215,7 @@ const Dashboard: React.FC = () => {
         <ConnectionControl 
           onConnect={handleConnect} 
           isConnected={connected} 
+          dataReceived={dataReceived}
         />
       </header>
       

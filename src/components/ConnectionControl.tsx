@@ -1,7 +1,7 @@
-
 import React, { useState, useEffect } from 'react';
 import { Button } from "@/components/ui/button";
 import serialService from "@/services/SerialService";
+import webSocketService from "@/services/WebSocketService";
 import { toast } from "sonner";
 import { Alert, AlertTitle, AlertDescription } from "@/components/ui/alert";
 import { Info, Zap, RefreshCcw, Shield, Wifi, WifiOff, Usb, Bug, AlertTriangle } from "lucide-react";
@@ -14,11 +14,13 @@ import { SerialPortInfo } from "@/services/types/serial.types";
 interface ConnectionControlProps {
   onConnect: () => void;
   isConnected: boolean;
+  dataReceived?: boolean;
 }
 
 const ConnectionControl: React.FC<ConnectionControlProps> = ({ 
   onConnect, 
-  isConnected 
+  isConnected,
+  dataReceived = false
 }) => {
   const [connecting, setConnecting] = useState(false);
   const [autoDetect, setAutoDetect] = useState(serialService.autoDetect);
@@ -37,7 +39,10 @@ const ConnectionControl: React.FC<ConnectionControlProps> = ({
                          window.location.hostname !== '127.0.0.1';
   
   useEffect(() => {
-    // Listen for Arduino errors
+    if (webSocketService.isWebSocketConnected()) {
+      setUsingWebSocket(true);
+    }
+    
     const handleArduinoError = (event: Event) => {
       const customEvent = event as CustomEvent;
       setIsError(true);
@@ -49,7 +54,6 @@ const ConnectionControl: React.FC<ConnectionControlProps> = ({
     
     document.addEventListener('arduino-error', handleArduinoError);
     
-    // Listen for successful connection events
     const handleConnectionSuccess = (event: Event) => {
       const customEvent = event as CustomEvent;
       setIsError(false);
@@ -60,7 +64,6 @@ const ConnectionControl: React.FC<ConnectionControlProps> = ({
     
     document.addEventListener('connection-success', handleConnectionSuccess);
     
-    // Load available ports on component mount
     if (isWebSerialSupported && !isSecurityRestricted) {
       fetchAvailablePorts();
     }
@@ -79,7 +82,6 @@ const ConnectionControl: React.FC<ConnectionControlProps> = ({
       const ports = await serialService.getAvailablePorts();
       setAvailablePorts(ports);
       
-      // Auto-select the first port if available
       if (ports.length > 0 && !selectedPortId) {
         setSelectedPortId(ports[0].id);
       }
@@ -100,7 +102,18 @@ const ConnectionControl: React.FC<ConnectionControlProps> = ({
       
       console.log("Attempting connection...");
       
-      // If auto-detect is disabled and we have a selected port, use it
+      if (isRaspberryPi) {
+        console.log("On Raspberry Pi, trying WebSocket first");
+        const wsConnected = webSocketService.connect();
+        if (wsConnected) {
+          setUsingWebSocket(true);
+          setUsingMockData(false);
+          setConnecting(false);
+          onConnect();
+          return;
+        }
+      }
+      
       let success = false;
       if (!autoDetect && selectedPortId) {
         const selectedPort = availablePorts.find(p => p.id === selectedPortId);
@@ -121,7 +134,6 @@ const ConnectionControl: React.FC<ConnectionControlProps> = ({
         setUsingMockData(serialService.isMockData);
         setUsingWebSocket(serialService.isWebSocket);
         
-        // Dispatch success event
         if (!serialService.isMockData && !serialService.isWebSocket) {
           const event = new CustomEvent('connection-success', { 
             detail: { 
@@ -152,6 +164,10 @@ const ConnectionControl: React.FC<ConnectionControlProps> = ({
   
   const handleDisconnect = async () => {
     try {
+      if (usingWebSocket) {
+        webSocketService.disconnect();
+      }
+      
       await serialService.disconnect();
       toast.info("Disconnected from device");
       setUsingMockData(false);
@@ -170,6 +186,7 @@ const ConnectionControl: React.FC<ConnectionControlProps> = ({
   const getConnectionTypeText = () => {
     if (!isConnected) return "Disconnected";
     if (isError) return "Connection Error";
+    if (isConnected && !dataReceived) return "Connected (No Data)";
     if (usingMockData) return "Connected (Mock Data)";
     if (usingWebSocket) return "Connected (WebSocket)";
     return "Connected (Direct Serial)";
@@ -178,6 +195,7 @@ const ConnectionControl: React.FC<ConnectionControlProps> = ({
   const getConnectionTypeColor = () => {
     if (!isConnected) return "bg-gray-400";
     if (isError) return "bg-red-500";
+    if (isConnected && !dataReceived) return "bg-yellow-500";
     if (usingMockData) return "bg-yellow-500";
     if (usingWebSocket) return "bg-blue-500";
     return "bg-green-500";
@@ -185,7 +203,22 @@ const ConnectionControl: React.FC<ConnectionControlProps> = ({
   
   return (
     <div className="space-y-4 my-4">
-      {/* Remote access specific message */}
+      {isConnected && !dataReceived && (
+        <Alert variant="warning" className="mb-4 border-yellow-400 text-yellow-800 bg-yellow-50">
+          <AlertTriangle className="h-4 w-4" />
+          <AlertTitle>Connected But No Data</AlertTitle>
+          <AlertDescription>
+            Connection established, but no data is being received. Check:
+            <ul className="list-disc list-inside mt-2">
+              <li>Arduino is sending data in the format: pH:6.20,temp:23.20,water:medium,tds:652</li>
+              <li>Correct port is selected (/dev/ttyUSB0 on Raspberry Pi)</li>
+              <li>Baud rate matches (9600)</li>
+              <li>Server logs for errors (if using WebSocket)</li>
+            </ul>
+          </AlertDescription>
+        </Alert>
+      )}
+
       {isRemoteAccess && (
         <Alert variant="default" className="mb-4 border-blue-400 text-blue-800 bg-blue-50">
           <Wifi className="h-4 w-4" />
@@ -198,7 +231,6 @@ const ConnectionControl: React.FC<ConnectionControlProps> = ({
         </Alert>
       )}
 
-      {/* Raspberry Pi specific message */}
       {isRaspberryPi && !isRemoteAccess && (
         <Alert variant="default" className="mb-4 border-blue-400 text-blue-800 bg-blue-50">
           <Wifi className="h-4 w-4" />
@@ -261,7 +293,6 @@ const ConnectionControl: React.FC<ConnectionControlProps> = ({
       )}
       
       <div className="flex flex-col space-y-4 sm:space-y-0">
-        {/* Port selection section */}
         {isWebSerialSupported && !isSecurityRestricted && !autoDetect && !isRemoteAccess && (
           <div className="flex flex-col space-y-2 sm:flex-row sm:items-center sm:space-y-0 sm:space-x-4 mb-4">
             <div className="flex-1">
@@ -339,7 +370,7 @@ const ConnectionControl: React.FC<ConnectionControlProps> = ({
               id="auto-detect" 
               checked={autoDetect}
               onCheckedChange={handleAutoDetectChange}
-              disabled={isRemoteAccess} // Disable when accessing remotely
+              disabled={isRemoteAccess}
             />
             <Label htmlFor="auto-detect" className={isRemoteAccess ? "text-gray-400" : ""}>Auto-detect hardware</Label>
             <TooltipProvider>

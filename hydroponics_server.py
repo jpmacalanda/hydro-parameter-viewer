@@ -116,48 +116,80 @@ async def read_serial():
         await generate_mock_data()
         return
     
+    buffer = ""
     while True:
         if ser and ser.in_waiting > 0:
             try:
-                line = ser.readline().decode('utf-8').strip()
-                if line:
-                    # Parse the Arduino data
-                    data = {}
+                # Read directly from serial
+                data = ser.read(ser.in_waiting).decode('utf-8')
+                buffer += data
+                
+                # Process any complete lines ending with newline
+                lines = buffer.split('\n')
+                buffer = lines.pop()  # Keep the incomplete line in buffer
+                
+                for line in lines:
+                    line = line.strip()
+                    if not line:  # Skip empty lines
+                        continue
+                        
+                    print(f"Raw data from Arduino: {line}")
+                    
+                    # Parse the Arduino data in format pH:6.20,temp:23.20,water:medium,tds:652
+                    parsed_data = {}
                     parts = line.split(',')
+                    
                     for part in parts:
                         key_value = part.split(':')
                         if len(key_value) == 2:
                             key, value = key_value
-                            if key.lower() == 'ph':
-                                data['ph'] = float(value)
-                            elif key.lower() == 'temp' or key.lower() == 'temperature':
-                                data['temperature'] = float(value)
-                            elif key.lower() == 'water' or key.lower() == 'waterlevel':
-                                data['waterLevel'] = value
-                            elif key.lower() == 'tds':
-                                data['tds'] = int(value)
-                    
-                    if data and connected_clients:
-                        # Send data to all connected clients
-                        message = json.dumps(data)
-                        
-                        websockets_to_remove = set()
-                        for client in connected_clients:
-                            try:
-                                await client.send(message)
-                            except websockets.exceptions.ConnectionClosed:
-                                websockets_to_remove.add(client)
-                            except Exception as e:
-                                print(f"Error sending serial data: {e}")
-                                websockets_to_remove.add(client)
-                        
-                        # Remove any closed connections
-                        connected_clients.difference_update(websockets_to_remove)
+                            key = key.strip().lower()
+                            value = value.strip()
                             
-                        print(f"Sent to {len(connected_clients)} clients: {message}")
+                            if key == 'ph':
+                                try:
+                                    parsed_data['ph'] = float(value)
+                                except ValueError:
+                                    print(f"Invalid pH value: {value}")
+                            elif key == 'temp' or key == 'temperature':
+                                try:
+                                    parsed_data['temperature'] = float(value)
+                                except ValueError:
+                                    print(f"Invalid temperature value: {value}")
+                            elif key == 'water' or key == 'waterlevel':
+                                parsed_data['waterLevel'] = value
+                            elif key == 'tds':
+                                try:
+                                    parsed_data['tds'] = int(value)
+                                except ValueError:
+                                    print(f"Invalid TDS value: {value}")
+                    
+                    # Only send if we have a valid data structure
+                    if 'ph' in parsed_data and 'temperature' in parsed_data and 'waterLevel' in parsed_data and 'tds' in parsed_data:
+                        if connected_clients:
+                            message = json.dumps(parsed_data)
+                            print(f"Sending to clients: {message}")
+                            
+                            websockets_to_remove = set()
+                            for client in connected_clients:
+                                try:
+                                    await client.send(message)
+                                except websockets.exceptions.ConnectionClosed:
+                                    websockets_to_remove.add(client)
+                                except Exception as e:
+                                    print(f"Error sending serial data: {e}")
+                                    websockets_to_remove.add(client)
+                            
+                            # Remove any closed connections
+                            connected_clients.difference_update(websockets_to_remove)
+                                
+                            print(f"Sent to {len(connected_clients)} clients: {message}")
+                    else:
+                        print(f"Incomplete or invalid data: {parsed_data}")
             except Exception as e:
                 print(f"Error reading/processing serial data: {e}")
-        await asyncio.sleep(1)
+                
+        await asyncio.sleep(0.1)  # Check more frequently
 
 async def health_server(websocket, path):
     """Simple health check endpoint"""
