@@ -5,39 +5,24 @@ import { Input } from "@/components/ui/input";
 import { Label } from "@/components/ui/label";
 import { Button } from "@/components/ui/button";
 import { toast } from "sonner";
+import { Thresholds } from './dashboard/types';
 
 interface ThresholdSettingsProps {
-  phMin: number;
-  phMax: number;
-  temperatureMin: number;
-  temperatureMax: number;
-  tdsMin: number;
-  tdsMax: number;
-  onSave: (thresholds: {
-    phMin: number;
-    phMax: number;
-    temperatureMin: number;
-    temperatureMax: number;
-    tdsMin: number;
-    tdsMax: number;
-  }) => void;
+  thresholds: Thresholds;
+  setThresholds: (thresholds: Thresholds) => void;
 }
 
 const ThresholdSettings: React.FC<ThresholdSettingsProps> = ({
-  phMin,
-  phMax,
-  temperatureMin,
-  temperatureMax,
-  tdsMin,
-  tdsMax,
-  onSave,
+  thresholds,
+  setThresholds,
 }) => {
-  const [localPhMin, setLocalPhMin] = React.useState(phMin.toString());
-  const [localPhMax, setLocalPhMax] = React.useState(phMax.toString());
-  const [localTempMin, setLocalTempMin] = React.useState(temperatureMin.toString());
-  const [localTempMax, setLocalTempMax] = React.useState(temperatureMax.toString());
-  const [localTdsMin, setLocalTdsMin] = React.useState(tdsMin.toString());
-  const [localTdsMax, setLocalTdsMax] = React.useState(tdsMax.toString());
+  // Initialize state with values from props, using fallbacks in case they're undefined
+  const [localPhMin, setLocalPhMin] = React.useState(thresholds?.phMin?.toString() || "6.0");
+  const [localPhMax, setLocalPhMax] = React.useState(thresholds?.phMax?.toString() || "7.0");
+  const [localTempMin, setLocalTempMin] = React.useState(thresholds?.temperatureMin?.toString() || "20");
+  const [localTempMax, setLocalTempMax] = React.useState(thresholds?.temperatureMax?.toString() || "30");
+  const [localTdsMin, setLocalTdsMin] = React.useState(thresholds?.tdsMin?.toString() || "600");
+  const [localTdsMax, setLocalTdsMax] = React.useState(thresholds?.tdsMax?.toString() || "700");
 
   const handleSave = () => {
     try {
@@ -72,7 +57,7 @@ const ThresholdSettings: React.FC<ThresholdSettingsProps> = ({
       }
       
       // Save changes
-      onSave({
+      setThresholds({
         phMin: newPhMin,
         phMax: newPhMax,
         temperatureMin: newTempMin,
