@@ -1,3 +1,4 @@
+
 import asyncio
 import serial
 import websockets
@@ -9,6 +10,7 @@ import time
 import random
 import socket
 import logging
+import glob
 from datetime import datetime
 import http
 
@@ -47,9 +49,9 @@ logger.setLevel(log_level)
 logger.info(f"Logging initialized at level {LOG_LEVEL} to {log_file}")
 
 # Configure these settings:
-SERIAL_PORT = "/dev/ttyUSB0"  # Change to your Arduino's serial port
-BAUD_RATE = 9600
-WS_PORT = 8081
+SERIAL_PORT = os.environ.get('SERIAL_PORT', "/dev/ttyUSB0")  # Can be overridden by environment variable
+BAUD_RATE = int(os.environ.get('BAUD_RATE', "9600"))  # Can be overridden by environment variable
+WS_PORT = int(os.environ.get('WS_PORT', "8081"))  # Can be overridden by environment variable
 USE_SSL = os.environ.get('USE_SSL', 'false').lower() == 'true'
 MOCK_DATA = os.environ.get('MOCK_DATA', 'false').lower() == 'true'
 
@@ -65,6 +67,32 @@ logger.info(f"- SSL enabled: {USE_SSL}")
 logger.info(f"- Mock data: {MOCK_DATA}")
 logger.info(f"- Log level: {LOG_LEVEL}")
 
+# Check available serial ports
+def list_serial_ports():
+    """Lists available serial ports on the system"""
+    if sys.platform.startswith('win'):
+        ports = ['COM%s' % (i + 1) for i in range(256)]
+    elif sys.platform.startswith('linux') or sys.platform.startswith('cygwin'):
+        # This excludes the current terminal /dev/tty
+        ports = glob.glob('/dev/tty[A-Za-z]*')
+        # Add USB serial device patterns
+        ports.extend(glob.glob('/dev/ttyUSB*'))
+        ports.extend(glob.glob('/dev/ttyACM*'))
+    elif sys.platform.startswith('darwin'):
+        ports = glob.glob('/dev/tty.*')
+    else:
+        raise EnvironmentError('Unsupported platform')
+
+    result = []
+    for port in ports:
+        try:
+            s = serial.Serial(port)
+            s.close()
+            result.append(port)
+        except (OSError, serial.SerialException):
+            pass
+    return result
+
 # Check if the port is already in use
 def is_port_in_use(port):
     with socket.socket(socket.AF_INET, socket.SOCK_STREAM) as s:
@@ -77,9 +105,35 @@ if is_port_in_use(WS_PORT):
     logger.error(f"And then: sudo kill <PID>")
     # Continue anyway, as the port might just be from a previous instance that hasn't fully closed yet
 
+# List available serial ports
+available_ports = list_serial_ports()
+logger.info(f"Available serial ports: {available_ports}")
+
 # Initialize serial connection
 ser = None
 if not MOCK_DATA:
+    # Check if our configured serial port exists
+    if SERIAL_PORT not in available_ports:
+        logger.warning(f"Configured serial port {SERIAL_PORT} not found in available ports: {available_ports}")
+        if available_ports:
+            logger.info(f"Available ports: {available_ports}")
+            logger.info(f"Will attempt to connect to {SERIAL_PORT} anyway in case it appears later")
+        else:
+            logger.warning("No serial ports found on the system")
+    
+    # Check if the user has permission to access the serial port
+    if os.path.exists(SERIAL_PORT):
+        try:
+            stats = os.stat(SERIAL_PORT)
+            logger.info(f"Serial port permissions: {oct(stats.st_mode)}")
+            
+            # Check if readable by the current user
+            if not os.access(SERIAL_PORT, os.R_OK | os.W_OK):
+                logger.warning(f"Current user does not have read/write permission to {SERIAL_PORT}")
+                logger.warning(f"You may need to run: sudo chmod 666 {SERIAL_PORT}")
+        except Exception as e:
+            logger.error(f"Error checking serial port permissions: {e}")
+    
     try:
         logger.debug(f"Attempting to open serial port {SERIAL_PORT} at {BAUD_RATE} baud")
         ser = serial.Serial(SERIAL_PORT, BAUD_RATE, timeout=1)
