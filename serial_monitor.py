@@ -45,8 +45,10 @@ def generate_mock_data():
         temp = round(random.uniform(20.0, 28.0), 1)
         water_level = random.choice(["low", "medium", "high"])
         tds = random.randint(400, 800)
-        data_str = f"pH:{ph},temp:{temp},water:{water_level},tds:{tds}"
-        logger.info(f"MOCK DATA: {data_str}")
+        
+        # Log the raw data exactly as if it came from Arduino
+        data_str = f"pH:{ph},temp:{temp},water:{water_level.upper()},tds:{tds}"
+        logger.info(f"SERIAL DATA: {data_str}")
         
         # Log data in JSON format for easier parsing
         json_data = {"ph": ph, "temperature": temp, "waterLevel": water_level.upper(), "tds": tds}

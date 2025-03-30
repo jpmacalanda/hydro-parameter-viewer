@@ -10,7 +10,6 @@ class LogParserService {
   private pollingInterval: ReturnType<typeof setInterval> | null = null;
   private lastProcessedTimestamp: string | null = null;
   private lastReceivedData: SerialData | null = null;
-  private dataCount: number = 0;
 
   /**
    * Start polling for logs and parse them for sensor data
@@ -24,10 +23,10 @@ class LogParserService {
     
     console.log("[DOCKER-LOG][LogParserService] Started polling for sensor data");
     
-    // Poll more frequently (every 0.8 seconds) to ensure data is processed quickly
+    // Poll more frequently (every 2 seconds) to ensure data is processed quickly
     this.pollingInterval = setInterval(() => {
       this.fetchAndParseLogs();
-    }, 800);
+    }, 2000);
     
     // Do an initial fetch immediately
     this.fetchAndParseLogs();
@@ -54,15 +53,25 @@ class LogParserService {
    */
   private async fetchAndParseLogs(): Promise<void> {
     try {
-      this.dataCount++;
+      // Fetch real logs from the logs server
+      console.log("[DOCKER-LOG][LogParserService] Fetching logs from /logs");
+      const response = await fetch('/logs');
       
-      // Generate serialized log data that matches the format from the serial monitor
-      const logs = this.generateRealSerialLogFormat();
-      console.log("[DOCKER-LOG][LogParserService] Generated sample log data for testing");
+      if (!response.ok) {
+        throw new Error(`Failed to fetch logs: ${response.status} ${response.statusText}`);
+      }
+      
+      const logs = await response.text();
+      
+      if (!logs || logs.trim() === "") {
+        console.warn("[DOCKER-LOG][LogParserService] Received empty logs from server");
+        return;
+      }
+      
+      console.log(`[DOCKER-LOG][LogParserService] Received ${logs.length} bytes of logs`);
       
       // Parse the logs for sensor data
       const sensorData = this.extractSensorDataFromLogs(logs);
-      console.log("[DOCKER-LOG][LogParserService] Parsed sensor data:", sensorData.length > 0 ? JSON.stringify(sensorData[0]) : "None found");
       
       // If we found valid sensor data, notify callbacks
       if (sensorData.length > 0) {
@@ -71,37 +80,18 @@ class LogParserService {
         
         // Store this data as the last received
         this.lastReceivedData = latestData;
-        console.log("[DOCKER-LOG][LogParserService] Sending new data to callbacks:", JSON.stringify(latestData));
+        console.log("[DOCKER-LOG][LogParserService] Sending real data to callbacks:", JSON.stringify(latestData));
         
         // Update listeners
         this.notifyCallbacks(latestData);
       } else {
-        console.log("[DOCKER-LOG][LogParserService] No valid sensor data found in logs");
-        
-        // Generate realistic test data with small variations to simulate real readings
-        const syntheticData: SerialData = {
-          ph: 6.5 + (Math.sin(this.dataCount / 10) * 0.3),
-          temperature: 23.0 + (Math.sin(this.dataCount / 5) * 1.0),
-          waterLevel: ["low", "medium", "high"][Math.floor(Math.sin(this.dataCount / 20) * 1.5 + 1.5)] as "low" | "medium" | "high",
-          tds: 650 + Math.floor(Math.sin(this.dataCount / 15) * 30)
-        };
-        
-        console.log("[DOCKER-LOG][LogParserService] Generated synthetic data for testing:", JSON.stringify(syntheticData));
-        this.notifyCallbacks(syntheticData);
+        console.warn("[DOCKER-LOG][LogParserService] No valid sensor data found in logs");
       }
     } catch (error) {
       console.error('[DOCKER-LOG][LogParserService] Error fetching logs:', error);
-      
-      // Even on error, generate some data to prevent UI from showing "no data"
-      const emergencyData: SerialData = {
-        ph: 6.5 + (Math.sin(this.dataCount / 10) * 0.3),
-        temperature: 23.0 + (Math.sin(this.dataCount / 5) * 1.0),
-        waterLevel: "medium",
-        tds: 650 + Math.floor(Math.sin(this.dataCount / 15) * 30)
-      };
-      
-      console.log("[DOCKER-LOG][LogParserService] Sending emergency data:", JSON.stringify(emergencyData));
-      this.notifyCallbacks(emergencyData);
+      toast.error('Failed to fetch sensor data logs', {
+        description: 'Check if the logs server is running'
+      });
     }
   }
 
@@ -218,24 +208,6 @@ class LogParserService {
     
     console.log(`[DOCKER-LOG][LogParserService] Found ${results.length} valid data entries in logs`);
     return results;
-  }
-
-  /**
-   * Generate real-looking serial logs that match the format in your logs
-   */
-  private generateRealSerialLogFormat(): string {
-    const now = new Date().toISOString().replace('T', ' ').substr(0, 19);
-    const ph = (6.5 + Math.sin(this.dataCount / 10) * 0.3).toFixed(2);
-    const temp = (23.0 + Math.sin(this.dataCount / 5) * 1.0).toFixed(2);
-    const waterLevel = ["LOW", "MEDIUM", "HIGH"][Math.floor(Math.sin(this.dataCount / 20) * 1.5 + 1.5)];
-    const tds = Math.floor(650 + Math.sin(this.dataCount / 15) * 30);
-    
-    return `${now} - INFO - SERIAL DATA: pH:${ph},temp:${temp},water:${waterLevel},tds:${tds}
-${now} - INFO - Parsed data: {"ph": ${ph}, "temperature": ${temp}, "waterLevel": "${waterLevel}", "tds": ${tds}}
-${now} - INFO - JSON parsed_data={"ph": ${ph}, "temperature": ${temp}, "waterLevel": "${waterLevel}", "tds": ${tds}}
-${now} - INFO - JSON_DATA={"ph": ${ph}, "temperature": ${temp}, "waterLevel": "${waterLevel}", "tds": ${tds}}
-${now} - INFO - SENSOR_DATA pH:${ph},temp:${temp},water:${waterLevel},tds:${tds}
-${now} - INFO - pH:${ph},temp:${temp},water:${waterLevel},tds:${tds}`;
   }
 
   /**
