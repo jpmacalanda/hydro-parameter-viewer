@@ -1,3 +1,4 @@
+
 import React, { useState, useEffect } from 'react';
 import { Button } from "@/components/ui/button";
 import serialService from "@/services/SerialService";
@@ -241,7 +242,9 @@ const ConnectionControl: React.FC<ConnectionControlProps> = ({
                   value={selectedPortId}
                   onValueChange={(value) => {
                     setSelectedPortId(value);
-                    setTimeout(() => checkPortUsage(), 100);
+                    // The issue is here: we're passing an argument to setTimeout callback
+                    // but checkPortUsage doesn't accept arguments
+                    setTimeout(checkPortUsage, 100);
                   }}
                   disabled={isConnected || loadingPorts}
                 >
