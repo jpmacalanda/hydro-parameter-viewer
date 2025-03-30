@@ -1,4 +1,3 @@
-
 import asyncio
 import serial
 import json
@@ -6,6 +5,7 @@ import time
 import random
 import logging
 import websockets
+import subprocess
 from typing import Set, Dict, Union, Any
 import os
 
@@ -22,6 +22,19 @@ ser = None
 def initialize_serial():
     """Initialize the serial connection or fall back to mock data mode"""
     global ser
+    
+    # First check if serial monitor is active - if so, use mock data
+    try:
+        result = subprocess.run(['docker', 'ps', '--format', '{{.Names}}'], capture_output=True, text=True)
+        running_containers = result.stdout.strip().split('\n')
+        serial_monitor_active = 'hydroponics-serial-monitor' in running_containers
+        
+        if serial_monitor_active:
+            logger.warning("Serial Monitor container is active - WebSocket will use mock data")
+            settings.MOCK_DATA = True
+            return None
+    except Exception as e:
+        logger.error(f"Error checking container status: {e}")
     
     if settings.MOCK_DATA:
         logger.info("Running in MOCK DATA mode - will generate simulated sensor readings")

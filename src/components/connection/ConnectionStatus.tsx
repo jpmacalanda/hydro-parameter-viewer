@@ -1,5 +1,6 @@
 
 import React from 'react';
+import { Wifi, WifiOff } from 'lucide-react';
 
 interface ConnectionStatusProps {
   isConnected: boolean;
@@ -39,8 +40,16 @@ const ConnectionStatus: React.FC<ConnectionStatusProps> = ({
       <div 
         className={`mr-2 w-3 h-3 rounded-full ${getConnectionTypeColor()}`}
       ></div>
-      <span className="text-sm text-gray-600">
+      <span className="text-sm text-gray-600 flex items-center">
         {getConnectionTypeText()}
+        {isConnected && !isError && (
+          <span className="ml-2">
+            {usingWebSocket ? 
+              <Wifi className="h-3 w-3 text-blue-500" /> : 
+              <WifiOff className="h-3 w-3 text-gray-500" />
+            }
+          </span>
+        )}
       </span>
     </div>
   );

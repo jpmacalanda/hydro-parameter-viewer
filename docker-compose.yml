@@ -70,7 +70,7 @@ services:
       - MOCK_DATA=${MOCK_DATA:-false}  # Changed default to false to prioritize real data
       - MAX_RETRIES=5
       - RETRY_DELAY=3
-    restart: unless-stopped
+    restart: "no"  # Changed from unless-stopped to no, so this container is not started by default
     # No need for network connection - this container just logs
     logging:
       driver: "json-file"

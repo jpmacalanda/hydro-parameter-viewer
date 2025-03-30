@@ -18,6 +18,7 @@ interface DashboardTabsProps {
     showThresholds: boolean;
     showSystemLogs: boolean;
     showSerialMonitor: boolean;
+    useWebSocket: boolean;
   };
   sensorData: SerialData;
   dataHistory: SerialData[];
@@ -35,6 +36,7 @@ interface DashboardTabsProps {
     showThresholds: boolean;
     showSystemLogs: boolean;
     showSerialMonitor: boolean;
+    useWebSocket: boolean;
   }>>;
 }
 

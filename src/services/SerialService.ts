@@ -494,6 +494,23 @@ class SerialService {
   onError(callback: ErrorCallback): void {
     this.errorCallbacks.push(callback);
   }
+
+  // Add a method to check which service is active
+  async checkActiveService(): Promise<{ useWebSocket: boolean }> {
+    try {
+      const response = await fetch('/api/status');
+      const data = await response.json();
+      
+      // Check for serialMonitorActive flag from server
+      return {
+        useWebSocket: !data.serialMonitorActive
+      };
+    } catch (error) {
+      console.error("Error checking active service:", error);
+      // Default to WebSocket if we can't determine
+      return { useWebSocket: true };
+    }
+  }
 }
 
 // Create a singleton instance

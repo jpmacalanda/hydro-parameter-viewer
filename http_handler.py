@@ -1,96 +1,81 @@
 
 import logging
-import http
 import json
+import os
+import http
+import urllib.parse
+import subprocess
+from typing import Dict, Any, Tuple, List, Optional, Set
+
 import websockets
-from datetime import datetime
 
 logger = logging.getLogger("hydroponics_server")
 
-# Store references to connected clients (will be populated from websocket_handler)
-connected_clients = set()
+# Store connected clients (will be set from websocket_handler)
+connected_clients: Set[websockets.WebSocketServerProtocol] = set()
 
-async def http_handler(path, request_headers):
-    """Handle regular HTTP requests to provide a health endpoint and API access"""
-    logger.debug(f"HTTP request received for path: {path}, headers: {request_headers}")
+async def http_handler(path: str, request_headers: Dict[str, str]) -> Optional[Tuple[int, Dict[str, str], bytes]]:
+    """Handle HTTP requests for health checks and API endpoints"""
+    logger.debug(f"HTTP request: {path}")
     
-    # Enhanced headers for CORS support
-    cors_headers = [
-        ('Content-Type', 'text/plain'),
-        ('Access-Control-Allow-Origin', '*'),
-        ('Access-Control-Allow-Methods', 'GET, OPTIONS, POST'),
-        ('Access-Control-Allow-Headers', 'Content-Type, Authorization'),
-        ('Access-Control-Max-Age', '86400'),  # 24 hours
-    ]
+    # Basic health check endpoint
+    if path == "/health":
+        logger.debug("Health check requested")
+        return http.HTTPStatus.OK, {"Content-Type": "text/plain"}, b"healthy\n"
     
-    # Check if this is a proper HTTP request or a WebSocket upgrade request
-    is_websocket = False
-    if isinstance(request_headers, websockets.datastructures.Headers):
-        upgrade_header = request_headers.get("Upgrade", "").lower()
-        if upgrade_header == "websocket":
-            is_websocket = True
-            # Let the WebSocket handler take care of this
-            return None
-    
-    # Handle preflight OPTIONS requests
-    method = "GET"  # Default method
-    if hasattr(request_headers, 'method'):
-        method = request_headers.method
-    elif isinstance(request_headers, dict) and 'method' in request_headers:
-        method = request_headers['method']
-    
-    if method == 'OPTIONS':
-        logger.info(f"Received OPTIONS request to {path}")
-        return http.HTTPStatus.OK, cors_headers, b""
-    
-    # Fix for path strings vs objects
-    path_str = path
-    if not isinstance(path, str):
-        # Try to extract path from various possible formats
-        if hasattr(path, 'path'):
-            path_str = path.path
-        elif hasattr(path, 'target'):
-            path_str = path.target
-        else:
-            # Default fallback
-            path_str = '/health'
-            logger.warning(f"Could not determine path from: {path}, using default: {path_str}")
-    
-    # Simple health check
-    if path_str == '/health' or path_str == '/':
-        logger.info(f"Received HTTP request to {path_str}")
-        return 200, cors_headers, b"healthy\n"
-    
-    # API endpoint
-    if path_str == '/api/status':
-        # Example API endpoint that returns server status
-        data = {
+    # API status endpoint
+    elif path == "/api/status":
+        from settings import MOCK_DATA
+        import serial_processor
+        
+        status_data = {
             "status": "running",
-            "mockData": True,  # This will be updated in the main app
-            "connectedClients": len(connected_clients),
-            "time": datetime.now().isoformat(),
-            "secure": True
+            "connected_clients": len(connected_clients),
+            "mock_data": MOCK_DATA,
+            "arduino_connected": serial_processor.ser is not None and not MOCK_DATA
         }
         
-        json_body = json.dumps(data).encode('utf-8')
-        json_headers = [
-            ('Content-Type', 'application/json'),
-            ('Access-Control-Allow-Origin', '*'),
-        ]
+        json_data = json.dumps(status_data).encode('utf-8')
+        return http.HTTPStatus.OK, {"Content-Type": "application/json"}, json_data
+    
+    # System control endpoint to toggle between WebSocket and Serial Monitor
+    elif path.startswith("/api/system/toggle-service"):
+        query_params = urllib.parse.parse_qs(urllib.parse.urlparse(path).query)
+        websocket_state = query_params.get('websocket', ['on'])[0]
+        monitor_state = query_params.get('monitor', ['off'])[0]
         
-        return 200, json_headers, json_body
+        logger.info(f"Service toggle requested: WebSocket={websocket_state}, Monitor={monitor_state}")
+        
+        try:
+            if websocket_state == 'on':
+                # Start WebSocket container, stop Serial Monitor
+                subprocess.run(["docker", "start", "hydroponics-websocket"], check=True)
+                subprocess.run(["docker", "stop", "hydroponics-serial-monitor"], check=True)
+                logger.info("WebSocket service activated, Serial Monitor stopped")
+                message = "WebSocket service activated"
+            else:
+                # Stop WebSocket container, start Serial Monitor
+                subprocess.run(["docker", "stop", "hydroponics-websocket"], check=True)
+                subprocess.run(["docker", "start", "hydroponics-serial-monitor"], check=True)
+                logger.info("WebSocket service stopped, Serial Monitor activated")
+                message = "Serial Monitor service activated"
+                
+            response_data = {
+                "success": True,
+                "message": message
+            }
+            
+            json_data = json.dumps(response_data).encode('utf-8')
+            return http.HTTPStatus.OK, {"Content-Type": "application/json"}, json_data
+            
+        except subprocess.CalledProcessError as e:
+            logger.error(f"Error toggling services: {e}")
+            error_data = {
+                "success": False,
+                "message": f"Failed to toggle services: {str(e)}"
+            }
+            json_data = json.dumps(error_data).encode('utf-8')
+            return http.HTTPStatus.INTERNAL_SERVER_ERROR, {"Content-Type": "application/json"}, json_data
     
-    # For any other path, also return 200 OK with info
-    logger.info(f"Received HTTP request to unknown path: {path_str}")
-    body = (
-        "Hydroponics Monitoring System WebSocket Server\n"
-        "----------------------------------------\n"
-        "This is the WebSocket server for the Hydroponics Monitoring System.\n"
-        "For the web interface, please access the web application.\n"
-        "For WebSocket connections, connect to wss://hostname:8081\n"
-        "Available endpoints:\n"
-        "- /health        - Server health check\n"
-        "- /api/status    - Server status in JSON format\n"
-    ).encode('utf-8')
-    
-    return 200, cors_headers, body
+    # If no match, return None to let the WebSocket server handle it
+    return None

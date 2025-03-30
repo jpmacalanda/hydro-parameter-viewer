@@ -48,12 +48,27 @@ async def websocket_handler(websocket, path):
         try:
             from settings import MOCK_DATA
             
+            # Check if we should be using serial monitor mode
+            serial_monitor_active = False
+            try:
+                import subprocess
+                result = subprocess.run(['docker', 'ps', '--format', '{{.Names}}'], capture_output=True, text=True)
+                running_containers = result.stdout.strip().split('\n')
+                serial_monitor_active = 'hydroponics-serial-monitor' in running_containers and 'hydroponics-websocket' not in running_containers
+                
+                if serial_monitor_active:
+                    logger.info(f"Serial Monitor is active, WebSocket will use mock data")
+                    MOCK_DATA = True
+            except Exception as e:
+                logger.error(f"Error checking container status: {e}")
+            
             initial_data = {
                 "ph": 7.0,
                 "temperature": 25.0,
                 "waterLevel": "MEDIUM",
                 "tds": 650,
-                "mockData": MOCK_DATA
+                "mockData": MOCK_DATA,
+                "serialMonitorActive": serial_monitor_active
             }
             await websocket.send(json.dumps(initial_data))
             logger.info(f"Sent initial data to {client_ip}: {initial_data}")
@@ -65,6 +80,14 @@ async def websocket_handler(websocket, path):
             if message == "ping":
                 logger.debug(f"Received ping from {client_ip}, sending pong")
                 await websocket.send("pong")
+            elif message.startswith("command:"):
+                # Handle commands sent from client
+                command = message[8:]  # Remove the 'command:' prefix
+                logger.info(f"Received command from {client_ip}: {command}")
+                
+                # Process command (could implement command handling here)
+                response = {"status": "ok", "message": f"Received command: {command}"}
+                await websocket.send(json.dumps(response))
             else:
                 logger.debug(f"Received message from {client_ip}: {message}")
             

@@ -3,7 +3,7 @@ import React from 'react';
 import { Card, CardContent, CardHeader, CardTitle, CardDescription } from "@/components/ui/card";
 import { Switch } from "@/components/ui/switch";
 import { Label } from "@/components/ui/label";
-import { Settings, BarChart, Gauge, FileText, Terminal } from "lucide-react";
+import { Settings, BarChart, Gauge, FileText, Terminal, Wifi, WifiOff } from "lucide-react";
 import { Button } from "@/components/ui/button";
 import { toast } from "sonner";
 
@@ -12,6 +12,7 @@ interface Features {
   showThresholds: boolean;
   showSystemLogs: boolean;
   showSerialMonitor: boolean;
+  useWebSocket: boolean;
 }
 
 interface FeatureSettingsProps {
@@ -21,10 +22,49 @@ interface FeatureSettingsProps {
 
 const FeatureSettings: React.FC<FeatureSettingsProps> = ({ features, setFeatures }) => {
   const handleFeatureToggle = (feature: keyof Features) => {
-    setFeatures(prev => ({
-      ...prev,
-      [feature]: !prev[feature]
-    }));
+    if (feature === 'useWebSocket') {
+      // Special handling for WebSocket toggle to restart the appropriate container
+      const newValue = !features.useWebSocket;
+      
+      // Show a loading toast
+      toast.loading(newValue ? "Activating WebSocket connection..." : "Activating Serial Monitor...");
+      
+      // Make API call to control containers
+      fetch(`/api/system/toggle-service?websocket=${newValue ? 'on' : 'off'}&monitor=${newValue ? 'off' : 'on'}`, {
+        method: 'POST',
+      })
+        .then(response => {
+          if (!response.ok) {
+            throw new Error('Failed to toggle service');
+          }
+          return response.json();
+        })
+        .then(data => {
+          setFeatures(prev => ({
+            ...prev,
+            [feature]: newValue
+          }));
+          
+          toast.dismiss();
+          toast.success(
+            newValue ? "WebSocket service activated" : "Serial Monitor service activated", 
+            { description: data.message || "Service switched successfully" }
+          );
+        })
+        .catch(error => {
+          toast.dismiss();
+          toast.error("Failed to toggle service", { 
+            description: error.message || "Check server logs for details" 
+          });
+          console.error("Error toggling service:", error);
+        });
+    } else {
+      // Normal toggle for other features
+      setFeatures(prev => ({
+        ...prev,
+        [feature]: !prev[feature]
+      }));
+    }
   };
 
   const saveSettings = () => {
@@ -93,6 +133,25 @@ const FeatureSettings: React.FC<FeatureSettingsProps> = ({ features, setFeatures
                 onCheckedChange={() => handleFeatureToggle('showSerialMonitor')}
               />
             </div>
+
+            <div className="flex items-center justify-between space-x-2 col-span-2 border-t pt-4 mt-2">
+              <div className="flex items-center space-x-2">
+                {features.useWebSocket ? <Wifi size={18} /> : <WifiOff size={18} />}
+                <Label htmlFor="use-websocket" className="cursor-pointer">
+                  Use WebSocket Connection
+                  <p className="text-xs text-muted-foreground mt-1">
+                    {features.useWebSocket 
+                      ? "Using WebSocket to read Arduino data (recommended)" 
+                      : "Using direct Serial Monitor to read Arduino data"}
+                  </p>
+                </Label>
+              </div>
+              <Switch 
+                id="use-websocket" 
+                checked={features.useWebSocket} 
+                onCheckedChange={() => handleFeatureToggle('useWebSocket')}
+              />
+            </div>
           </div>
           
           <Button onClick={saveSettings} className="w-full">Save Settings</Button>
@@ -101,6 +160,9 @@ const FeatureSettings: React.FC<FeatureSettingsProps> = ({ features, setFeatures
             <p className="font-semibold">Note:</p>
             <p>Disabling all diagnostic features (System Logs and Serial Monitor) will hide the Diagnostics tab completely.</p>
             <p>Changes take effect immediately but are not persisted between sessions in this demo.</p>
+            <p className="mt-2 text-xs bg-amber-50 p-2 rounded border border-amber-200">
+              Toggling the WebSocket connection will restart the respective Docker container. This may take a few seconds.
+            </p>
           </div>
         </CardContent>
       </Card>
