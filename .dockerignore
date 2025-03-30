@@ -9,3 +9,4 @@ Dockerfile.server
 .gitignore
 README.md
 docker-compose.yml
+ssl

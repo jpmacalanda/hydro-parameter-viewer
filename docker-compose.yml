@@ -16,7 +16,6 @@ services:
     depends_on:
       - websocket
     restart: unless-stopped
-    # Improved healthcheck with longer timeouts
     healthcheck:
       test: ["CMD", "curl", "-k", "https://localhost/health"]
       interval: 30s
