@@ -65,11 +65,14 @@ const Dashboard: React.FC = () => {
 
   const [notifications, setNotifications] = useState<Notification[]>([]);
   const [unreadCount, setUnreadCount] = useState(0);
+  const [lastDataReceived, setLastDataReceived] = useState<Date | null>(null);
+  const [isRemoteAccess, setIsRemoteAccess] = useState(false);
 
   useEffect(() => {
     serialService.onData((data) => {
       setSensorData(data);
       setLastUpdate(new Date());
+      setLastDataReceived(new Date());
       
       setDataHistory(prevHistory => {
         const newHistory = [...prevHistory, data];
@@ -89,6 +92,30 @@ const Dashboard: React.FC = () => {
     });
 
     setConnected(!serialService.isMockData);
+    
+    const hostname = window.location.hostname;
+    const isRemote = hostname !== 'localhost' && hostname !== '127.0.0.1';
+    setIsRemoteAccess(isRemote);
+    
+    if (isRemote) {
+      addNotification(
+        'info', 
+        'Remote Access Detected', 
+        'You are accessing this dashboard from a different device than the one hosting it. The system will automatically use the WebSocket connection to access the Arduino connected to the Raspberry Pi.'
+      );
+    }
+    
+    const isRaspberryPi = hostname === 'raspberrypi.local' || 
+                          hostname.startsWith('192.168.') ||
+                          hostname === 'localhost';
+    
+    if (isRaspberryPi && !isRemote) {
+      addNotification(
+        'info',
+        'Running on Raspberry Pi',
+        'For best results on Raspberry Pi: Use HTTP instead of HTTPS (no certificate issues), ensure the Arduino is connected to USB port, and make sure your user has permission to access /dev/ttyUSB0'
+      );
+    }
 
     return () => {
     };
@@ -98,6 +125,24 @@ const Dashboard: React.FC = () => {
     const count = notifications.filter(notif => !notif.read).length;
     setUnreadCount(count);
   }, [notifications]);
+
+  useEffect(() => {
+    if (connected && !lastDataReceived) {
+      const timer = setTimeout(() => {
+        addNotification(
+          'warning',
+          'Connected But No Data',
+          'Connection established, but no data is being received. Check:\n' +
+          '- Arduino is sending data in the format: pH:6.20,temp:23.20,water:medium,tds:652\n' +
+          '- Correct port is selected (/dev/ttyUSB0 on Raspberry Pi)\n' +
+          '- Baud rate matches (9600)\n' +
+          '- Server logs for errors (if using WebSocket)'
+        );
+      }, 10000); // Give it 10 seconds to receive data
+      
+      return () => clearTimeout(timer);
+    }
+  }, [connected, lastDataReceived]);
 
   const handleConnect = () => {
     setConnected(true);
@@ -194,6 +239,7 @@ const Dashboard: React.FC = () => {
       <ConnectionControl 
         onConnect={handleConnect} 
         isConnected={connected} 
+        dataReceived={lastDataReceived !== null}
       />
 
       <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-4 gap-4 mb-8">

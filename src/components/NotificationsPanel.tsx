@@ -1,6 +1,6 @@
 
 import React from 'react';
-import { Bell, CheckCircle, AlertTriangle, Info } from 'lucide-react';
+import { Bell, CheckCircle, AlertTriangle, Info, Wifi, ShieldAlert } from 'lucide-react';
 import { Badge } from "@/components/ui/badge";
 import { Alert, AlertTitle, AlertDescription } from "@/components/ui/alert";
 import { SerialData } from '@/services/types/serial.types';
@@ -30,7 +30,16 @@ const NotificationsPanel: React.FC<NotificationsPanelProps> = ({
   onClearAll
 }) => {
   // Get the icon based on notification type
-  const getNotificationIcon = (type: NotificationType) => {
+  const getNotificationIcon = (type: NotificationType, title: string) => {
+    // Check for specific titles first for better icon matching
+    if (title.includes('Remote Access')) {
+      return <Wifi className="h-5 w-5 text-blue-500" />;
+    }
+    if (title.includes('Web Serial API')) {
+      return <ShieldAlert className="h-5 w-5 text-yellow-500" />;
+    }
+    
+    // Fall back to type-based icons
     switch (type) {
       case 'success':
         return <CheckCircle className="h-5 w-5 text-green-500" />;
@@ -54,6 +63,18 @@ const NotificationsPanel: React.FC<NotificationsPanelProps> = ({
       default:
         return 'default';
     }
+  };
+  
+  // Format message to handle newlines
+  const formatMessage = (message: string) => {
+    if (!message.includes('\n')) return message;
+    
+    return message.split('\n').map((line, index) => (
+      <React.Fragment key={index}>
+        {line}
+        {index < message.split('\n').length - 1 && <br />}
+      </React.Fragment>
+    ));
   };
 
   return (
@@ -90,7 +111,7 @@ const NotificationsPanel: React.FC<NotificationsPanelProps> = ({
               className={`relative ${notification.read ? 'opacity-70' : ''}`}
             >
               <div className="flex items-start">
-                {getNotificationIcon(notification.type)}
+                {getNotificationIcon(notification.type, notification.title)}
                 <div className="ml-3 flex-1">
                   <div className="flex justify-between items-start">
                     <AlertTitle>{notification.title}</AlertTitle>
@@ -98,7 +119,9 @@ const NotificationsPanel: React.FC<NotificationsPanelProps> = ({
                       <Badge variant="secondary" className="ml-2 text-xs">New</Badge>
                     )}
                   </div>
-                  <AlertDescription>{notification.message}</AlertDescription>
+                  <AlertDescription className="whitespace-pre-line">
+                    {formatMessage(notification.message)}
+                  </AlertDescription>
                   <div className="flex justify-between mt-2 text-xs text-gray-500">
                     <span>
                       {notification.timestamp.toLocaleString()}
@@ -123,3 +146,4 @@ const NotificationsPanel: React.FC<NotificationsPanelProps> = ({
 };
 
 export default NotificationsPanel;
+

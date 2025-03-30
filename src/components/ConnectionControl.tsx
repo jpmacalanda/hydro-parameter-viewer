@@ -4,10 +4,8 @@ import { Button } from "@/components/ui/button";
 import serialService from "@/services/SerialService";
 import webSocketService from "@/services/WebSocketService";
 import { toast } from "sonner";
-import { Alert, AlertTitle, AlertDescription } from "@/components/ui/alert";
-import { Info, Zap, RefreshCcw, Shield, Wifi, WifiOff, Usb, Bug, AlertTriangle } from "lucide-react";
+import { Zap, RefreshCcw, Wifi, Usb } from "lucide-react";
 import { Label } from "@/components/ui/label";
-import { Tooltip, TooltipContent, TooltipProvider, TooltipTrigger } from "@/components/ui/tooltip";
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@/components/ui/select";
 import { SerialPortInfo } from "@/services/types/serial.types";
 
@@ -31,11 +29,6 @@ const ConnectionControl: React.FC<ConnectionControlProps> = ({
   const [isError, setIsError] = useState(false);
   const isWebSerialSupported = serialService.isSupported;
   const isSecurityRestricted = serialService.isSecurityRestricted;
-  const isRaspberryPi = window.location.hostname === 'raspberrypi.local' || 
-                        window.location.hostname.startsWith('192.168.') ||
-                        window.location.hostname === 'localhost';
-  const isRemoteAccess = window.location.hostname !== 'localhost' && 
-                         window.location.hostname !== '127.0.0.1';
   
   useEffect(() => {
     if (webSocketService.isWebSocketConnected()) {
@@ -100,6 +93,11 @@ const ConnectionControl: React.FC<ConnectionControlProps> = ({
       setIsError(false);
       
       console.log("Attempting connection...");
+      
+      const hostname = window.location.hostname;
+      const isRaspberryPi = hostname === 'raspberrypi.local' || 
+                           hostname.startsWith('192.168.') ||
+                           hostname === 'localhost';
       
       if (isRaspberryPi) {
         console.log("On Raspberry Pi, trying WebSocket first");
@@ -197,96 +195,8 @@ const ConnectionControl: React.FC<ConnectionControlProps> = ({
   
   return (
     <div className="space-y-4 my-4">
-      {isConnected && !dataReceived && (
-        <Alert variant="warning" className="mb-4 border-yellow-400 text-yellow-800 bg-yellow-50">
-          <AlertTriangle className="h-4 w-4" />
-          <AlertTitle>Connected But No Data</AlertTitle>
-          <AlertDescription>
-            Connection established, but no data is being received. Check:
-            <ul className="list-disc list-inside mt-2">
-              <li>Arduino is sending data in the format: pH:6.20,temp:23.20,water:medium,tds:652</li>
-              <li>Correct port is selected (/dev/ttyUSB0 on Raspberry Pi)</li>
-              <li>Baud rate matches (9600)</li>
-              <li>Server logs for errors (if using WebSocket)</li>
-            </ul>
-          </AlertDescription>
-        </Alert>
-      )}
-
-      {isRemoteAccess && (
-        <Alert variant="default" className="mb-4 border-blue-400 text-blue-800 bg-blue-50">
-          <Wifi className="h-4 w-4" />
-          <AlertTitle>Remote Access Detected</AlertTitle>
-          <AlertDescription>
-            You are accessing this dashboard from a different device than the one hosting it.
-            The system will automatically use the WebSocket connection to access the Arduino 
-            connected to the Raspberry Pi.
-          </AlertDescription>
-        </Alert>
-      )}
-
-      {isRaspberryPi && !isRemoteAccess && (
-        <Alert variant="default" className="mb-4 border-blue-400 text-blue-800 bg-blue-50">
-          <Wifi className="h-4 w-4" />
-          <AlertTitle>Running on Raspberry Pi</AlertTitle>
-          <AlertDescription>
-            For best results on Raspberry Pi:
-            <ul className="list-disc list-inside mt-2">
-              <li>Use HTTP instead of HTTPS (no certificate issues)</li>
-              <li>Ensure the Arduino is connected to USB port</li>
-              <li>Make sure your user has permission to access /dev/ttyUSB0</li>
-            </ul>
-          </AlertDescription>
-        </Alert>
-      )}
-
-      {!isWebSerialSupported && !isRemoteAccess && (
-        <Alert variant="destructive" className="mb-4">
-          <Info className="h-4 w-4" />
-          <AlertTitle>Web Serial API not supported</AlertTitle>
-          <AlertDescription>
-            {isRaspberryPi ? (
-              <>
-                On Raspberry Pi, this is expected. The system will automatically use:
-                <ul className="list-disc list-inside mt-2">
-                  <li>WebSocket connection (preferred)</li>
-                  <li>Mock data (if WebSocket fails)</li>
-                </ul>
-                Press "Connect to Arduino" to begin.
-              </>
-            ) : (
-              <>
-                Your browser does not support the Web Serial API. 
-                Try using Chrome or Edge. The app will use simulated data instead.
-              </>
-            )}
-          </AlertDescription>
-        </Alert>
-      )}
-      
-      {isWebSerialSupported && isSecurityRestricted && !isRemoteAccess && (
-        <Alert variant="default" className="mb-4 border-yellow-400 text-yellow-800 bg-yellow-50">
-          <Shield className="h-4 w-4" />
-          <AlertTitle>Web Serial API restricted</AlertTitle>
-          <AlertDescription>
-            Access to the Web Serial API is restricted by your browser's security policy.
-            This often happens in:
-            <ul className="list-disc list-inside mt-2">
-              <li>iframes (like this preview)</li>
-              <li>non-secure contexts (non-HTTPS sites)</li>
-              <li>when browser permissions are denied</li>
-            </ul>
-            {isRaspberryPi ? (
-              <>Press "Connect to Arduino" to use WebSocket connection instead.</>
-            ) : (
-              <>Try opening this app in a new Chrome or Edge window.</>
-            )}
-          </AlertDescription>
-        </Alert>
-      )}
-      
       <div className="flex flex-col space-y-4 sm:space-y-0">
-        {isWebSerialSupported && !isSecurityRestricted && !isRemoteAccess && (
+        {isWebSerialSupported && !isSecurityRestricted && (
           <div className="flex flex-col space-y-2 sm:flex-row sm:items-center sm:space-y-0 sm:space-x-4 mb-4">
             <div className="flex-1">
               <Label htmlFor="port-select" className="mb-2 block">Serial Port</Label>
@@ -334,7 +244,7 @@ const ConnectionControl: React.FC<ConnectionControlProps> = ({
                 onClick={handleConnect}
                 variant="default"
                 className="bg-hydro-blue hover:bg-hydro-blue/90"
-                disabled={connecting || (!selectedPortId && availablePorts.length > 0 && !isSecurityRestricted && !isRemoteAccess)}
+                disabled={connecting || (!selectedPortId && availablePorts.length > 0 && !isSecurityRestricted)}
               >
                 {connecting ? 'Connecting...' : 'Connect to Arduino'}
               </Button>
@@ -364,3 +274,4 @@ const ConnectionControl: React.FC<ConnectionControlProps> = ({
 };
 
 export default ConnectionControl;
+
