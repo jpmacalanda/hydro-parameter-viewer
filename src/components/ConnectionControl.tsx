@@ -1,3 +1,4 @@
+
 import React, { useState, useEffect } from 'react';
 import serialService from "@/services/SerialService";
 import { toast } from "sonner";
@@ -24,8 +25,6 @@ const ConnectionControl: React.FC<ConnectionControlProps> = ({
   
   useEffect(() => {
     console.log("[DOCKER-LOG][ConnectionControl] Component mounted");
-    
-    // No need to check environment variables since we're not using mock data
     
     const handleArduinoError = (event: Event) => {
       const customEvent = event as CustomEvent;

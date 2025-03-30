@@ -48,7 +48,6 @@ class SerialService {
       // Explicitly set mock data to false - never use mock data
       this.useMockData = false;
       
-      console.log("[DOCKER-LOG][SerialService] Environment VITE_MOCK_DATA:", import.meta.env.VITE_MOCK_DATA);
       console.log("[DOCKER-LOG][SerialService] Using mock data?", this.useMockData);
       
       // Set up log parser to get real data from logs
@@ -87,12 +86,6 @@ class SerialService {
       
       return false;
     }
-  }
-
-  // Set up mock data generation - this is now a no-op since we never use mock data
-  private setupMockData(): void {
-    // This function is kept for backward compatibility but is now a no-op
-    console.log("[DOCKER-LOG][SerialService] Mock data setup requested but ignored - using real data only");
   }
 
   // Disconnect from the service
