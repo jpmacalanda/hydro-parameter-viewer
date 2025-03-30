@@ -7,16 +7,17 @@ import Dashboard from './components/Dashboard';
 import ConnectionControl from './components/ConnectionControl';
 import { NotificationsProvider } from '@/context/NotificationsContext';
 import serialService from '@/services/SerialService';
+import { SerialData } from '@/services/types/serial.types';
 
 function App() {
   const [isConnected, setIsConnected] = useState(false);
-  const [sensorData, setSensorData] = useState({
+  const [sensorData, setSensorData] = useState<SerialData>({
     ph: 7.0,
     temperature: 25.0,
-    waterLevel: "medium" as "low" | "medium" | "high", // Type assertion to specify literal type
+    waterLevel: "medium",
     tds: 650
   });
-  const [dataHistory, setDataHistory] = useState([]);
+  const [dataHistory, setDataHistory] = useState<SerialData[]>([]);
   const [thresholds, setThresholds] = useState({
     phMin: 6.0,
     phMax: 7.0,
@@ -63,7 +64,7 @@ function App() {
     setDataReceived(false);
   };
 
-  const handleSensorData = (data) => {
+  const handleSensorData = (data: SerialData) => {
     setSensorData(data);
     setDataHistory(prev => [...prev, data]);
     setDataReceived(true);
@@ -73,25 +74,25 @@ function App() {
     <NotificationsProvider>
       <Router>
         <div className="container mx-auto p-4">
-          <h1 className="text-3xl font-bold mb-4">Hydroponics Monitoring System</h1>
+          {/* Remove the header from here since it's already in Dashboard */}
           
           <ConnectionControl 
             onConnect={handleConnect} 
+            onDisconnect={handleDisconnect}
             isConnected={isConnected}
             dataReceived={dataReceived}
           />
           
-          {isConnected && (
-            <Dashboard 
-              features={features}
-              sensorData={sensorData} 
-              dataHistory={dataHistory}
-              thresholds={thresholds}
-              setThresholds={setThresholds}
-              setFeatures={setFeatures}
-              onSensorData={handleSensorData}
-            />
-          )}
+          {/* Always render Dashboard, it will handle showing/hiding content based on connection state */}
+          <Dashboard 
+            features={features}
+            sensorData={sensorData} 
+            dataHistory={dataHistory}
+            thresholds={thresholds}
+            setThresholds={setThresholds}
+            setFeatures={setFeatures}
+            onSensorData={handleSensorData}
+          />
           
           <Toaster />
         </div>

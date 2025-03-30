@@ -11,12 +11,14 @@ import ConnectionButtons from './connection/ConnectionButtons';
 
 interface ConnectionControlProps {
   onConnect: () => void;
+  onDisconnect: () => void; // Add the new prop
   isConnected: boolean;
   dataReceived?: boolean;
 }
 
 const ConnectionControl: React.FC<ConnectionControlProps> = ({ 
   onConnect, 
+  onDisconnect, // Add the new prop
   isConnected,
   dataReceived = false
 }) => {
@@ -214,6 +216,7 @@ const ConnectionControl: React.FC<ConnectionControlProps> = ({
       setUsingMockData(false);
       setUsingWebSocket(false);
       setIsError(false);
+      onDisconnect(); // Call the new prop
     } catch (error) {
       console.error("Disconnection error:", error);
     }

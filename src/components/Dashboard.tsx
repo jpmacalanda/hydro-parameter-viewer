@@ -50,7 +50,6 @@ const DashboardContent: React.FC<DashboardProps> = ({
   setFeatures,
   onSensorData
 }) => {
-  // Remove all the duplicate state declarations since we're now using props
   const [connected, setConnected] = useState(false);
   const [lastUpdate, setLastUpdate] = useState<Date | null>(null);
   const [showGraphs, setShowGraphs] = useState(false);
@@ -78,9 +77,6 @@ const DashboardContent: React.FC<DashboardProps> = ({
     serialService.onData((data) => {
       setLastUpdate(new Date());
       setLastDataReceived(new Date());
-      
-      // We don't need to update the sensorData state here anymore
-      // as it's now coming in as a prop from the parent
       
       // Pass the received data up to the parent
       onSensorData(data);
@@ -112,67 +108,66 @@ const DashboardContent: React.FC<DashboardProps> = ({
     <div className="container mx-auto px-4 py-8">
       <DashboardHeader title="Hydroponics Monitoring Dashboard" />
       
-      <ConnectionControl 
-        onConnect={handleConnect} 
-        isConnected={connected} 
-        dataReceived={lastDataReceived !== null}
-      />
-
-      {/* Display either SensorGrid or MonitoringPanel based on showGraphs */}
-      {showGraphs ? (
-        <MonitoringPanel 
-          params={sensorData}
-          phHistory={phHistory}
-          tempHistory={tempHistory}
-          tdsHistory={tdsHistory}
-          showGraphs={showGraphs}
-          setShowGraphs={setShowGraphs}
-          thresholds={thresholds}
-        />
-      ) : (
-        <div className="mb-4">
-          <div className="flex items-center space-x-2 mb-4">
-            <label htmlFor="show-graphs" className="flex items-center cursor-pointer">
-              <div className="relative">
-                <input
-                  id="show-graphs"
-                  type="checkbox"
-                  className="sr-only"
-                  checked={showGraphs}
-                  onChange={e => setShowGraphs(e.target.checked)}
-                />
-                <div className="block bg-gray-300 w-14 h-8 rounded-full"></div>
-                <div className={`dot absolute left-1 top-1 bg-white w-6 h-6 rounded-full transition ${showGraphs ? 'transform translate-x-6' : ''}`}></div>
+      {/* Only render content if connected */}
+      {connected ? (
+        <>
+          {/* Display either SensorGrid or MonitoringPanel based on showGraphs */}
+          {showGraphs ? (
+            <MonitoringPanel 
+              params={sensorData}
+              phHistory={phHistory}
+              tempHistory={tempHistory}
+              tdsHistory={tdsHistory}
+              showGraphs={showGraphs}
+              setShowGraphs={setShowGraphs}
+              thresholds={thresholds}
+            />
+          ) : (
+            <div className="mb-4">
+              <div className="flex items-center space-x-2 mb-4">
+                <label htmlFor="show-graphs" className="flex items-center cursor-pointer">
+                  <div className="relative">
+                    <input
+                      id="show-graphs"
+                      type="checkbox"
+                      className="sr-only"
+                      checked={showGraphs}
+                      onChange={e => setShowGraphs(e.target.checked)}
+                    />
+                    <div className="block bg-gray-300 w-14 h-8 rounded-full"></div>
+                    <div className={`dot absolute left-1 top-1 bg-white w-6 h-6 rounded-full transition ${showGraphs ? 'transform translate-x-6' : ''}`}></div>
+                  </div>
+                  <div className="ml-3 text-gray-700 font-medium">Show Historical Graphs</div>
+                </label>
               </div>
-              <div className="ml-3 text-gray-700 font-medium">Show Historical Graphs</div>
-            </label>
-          </div>
-          <SensorGrid sensorData={sensorData} thresholds={thresholds} />
-        </div>
-      )}
-      
-      <SystemInfoPanel 
-        connected={connected} 
-        lastUpdate={lastUpdate}
-        thresholds={thresholds}
-      />
-      
-      <DashboardTabs 
-        features={features}
-        sensorData={sensorData}
-        dataHistory={dataHistory}
-        thresholds={thresholds}
-        setThresholds={setThresholds}
-        setFeatures={setFeatures}
-      />
+              <SensorGrid sensorData={sensorData} thresholds={thresholds} />
+            </div>
+          )}
+          
+          <SystemInfoPanel 
+            connected={connected} 
+            lastUpdate={lastUpdate}
+            thresholds={thresholds}
+          />
+          
+          <DashboardTabs 
+            features={features}
+            sensorData={sensorData}
+            dataHistory={dataHistory}
+            thresholds={thresholds}
+            setThresholds={setThresholds}
+            setFeatures={setFeatures}
+          />
 
-      {/* Non-visual components for side effects */}
-      <ThresholdChecker sensorData={sensorData} thresholds={thresholds} />
-      <ConnectionDetection 
-        connected={connected} 
-        lastDataReceived={lastDataReceived} 
-        isRemoteAccess={isRemoteAccess} 
-      />
+          {/* Non-visual components for side effects */}
+          <ThresholdChecker sensorData={sensorData} thresholds={thresholds} />
+          <ConnectionDetection 
+            connected={connected} 
+            lastDataReceived={lastDataReceived} 
+            isRemoteAccess={isRemoteAccess} 
+          />
+        </>
+      ) : null}
     </div>
   );
 };
