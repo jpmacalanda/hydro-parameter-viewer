@@ -37,7 +37,6 @@ class WebSocketService {
           this.initiateWebSocketConnection(serverUrl);
         } else {
           console.error(`[WebSocket] Server at ${serverUrl} is not available via HTTP check`);
-          this.notifyError(new Error(`Server at ${serverUrl.replace('ws', 'http')} is not reachable. Check if the WebSocket server is running.`));
           
           // Try fallback from secure to non-secure WebSocket if needed
           if (serverUrl.startsWith('wss:')) {
@@ -45,6 +44,9 @@ class WebSocketService {
             const fallbackUrl = serverUrl.replace('wss:', 'ws:');
             console.log(`[WebSocket] Fallback URL: ${fallbackUrl}`);
             setTimeout(() => this.connect(fallbackUrl), 1000);
+          } else {
+            // If we're already on ws: and it failed, notify error
+            this.notifyError(new Error(`Server at ${serverUrl.replace('ws', 'http')} is not reachable. Check if the WebSocket server is running.`));
           }
         }
       });
@@ -60,6 +62,7 @@ class WebSocketService {
       
       console.log(`[WebSocket] Checking server availability at ${healthUrl}`);
       
+      // Use no-cors mode for the health check to handle cross-origin requests 
       const response = await fetch(healthUrl, { 
         method: 'GET',
         mode: 'no-cors',
@@ -309,22 +312,22 @@ class WebSocketService {
     const hostname = window.location.hostname;
     console.log(`[WebSocket] Current hostname: ${hostname}`);
     
-    // Get the port from the current location to handle development setups
-    const protocol = window.location.protocol === 'https:' ? 'wss:' : 'ws:';
+    // Important: Always use plain ws:// protocol for this application
+    // since our WebSocket server doesn't handle SSL directly
+    const protocol = 'ws:';
     console.log(`[WebSocket] Using protocol: ${protocol}`);
     
     // Check if we're accessing from Raspberry Pi itself
     if (this.isRaspberryPi()) {
-      // When running on the Pi itself, connect to the websocket server on 8081
+      // When running on the Pi itself, connect to the WebSocket server on 8081
       const url = `${protocol}//${hostname}:8081`;
       console.log(`[WebSocket] Using Raspberry Pi URL: ${url}`);
       return url;
     }
     
-    // If not localhost, we're probably accessing remotely - use relative path
+    // If not localhost, we're probably accessing remotely - use direct IP
     if (hostname !== 'localhost' && hostname !== '127.0.0.1') {
-      // For remote access, use a relative WebSocket URL
-      // This will connect to the same host but on the WebSocket port
+      // For remote access, use the same hostname with WebSocket port
       const url = `${protocol}//${hostname}:8081`;
       console.log(`[WebSocket] Using direct remote URL: ${url}`);
       return url;
