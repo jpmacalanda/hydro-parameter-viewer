@@ -10,6 +10,45 @@
   - Water level sensor
   - TDS sensor
 
+## Wiring Diagram
+
+```
+                  ┌─────────────┐
+                  │   Arduino   │
+                  │             │
+┌─────────┐       │         A0 ◄─── pH Sensor
+│         │       │             │
+│ pH      ├───────► GND         │
+│ Sensor  │       │             │
+│         ├───────► 5V          │
+└─────────┘       │             │
+                  │             │
+┌─────────┐       │         A1 ◄─── Temperature Sensor
+│         │       │             │
+│ Temp    ├───────► GND         │
+│ Sensor  │       │             │
+│         ├───────► 5V          │
+└─────────┘       │             │
+                  │             │
+┌─────────┐       │         A2 ◄─── TDS Sensor
+│         │       │             │
+│ TDS     ├───────► GND         │
+│ Sensor  │       │             │
+│         ├───────► 5V          │
+└─────────┘       │             │
+                  │             │
+┌─────────┐       │         D2 ◄─── Water Level Sensor
+│         │       │             │
+│ Water   ├───────► GND         │
+│ Level   │       │             │
+│ Sensor  ├───────► 5V          │
+└─────────┘       │             │
+                  │             │
+                  │         USB ◄─── To Raspberry Pi
+                  │             │
+                  └─────────────┘
+```
+
 ## Software Setup
 
 1. **Install Arduino IDE**
@@ -47,4 +86,26 @@ void loop() {
 ```
 
 3. **Connect Arduino to Raspberry Pi** via USB
+
+## Sensor Configuration
+
+### pH Sensor
+- Connect to analog pin A0
+- Calibration: Use buffer solutions of pH 4.0 and 7.0
+- Adjust the calibration factor in the code as needed
+
+### Temperature Sensor
+- Connect to analog pin A1
+- Waterproof DS18B20 recommended for hydroponics
+- Uses OneWire library for communication
+
+### TDS Sensor
+- Connect to analog pin A2
+- Requires temperature compensation for accurate readings
+- Calibrate with standard solution (e.g., 1000 ppm)
+
+### Water Level Sensor
+- Connect to digital pin D2
+- Float switch or ultrasonic sensor can be used
+- Configure threshold values based on your tank dimensions
 

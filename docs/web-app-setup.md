@@ -24,6 +24,27 @@ npm run dev
 - **Local access**: http://localhost:8080
 - **Network access**: http://[RASPBERRY_PI_IP]:8080
 
+## Dashboard Overview
+
+```
+┌─────────────────────────────────────────────────────────────┐
+│                        Dashboard                            │
+├────────────────┬────────────────┬────────────────┬─────────┤
+│                │                │                │         │
+│    pH Level    │  Temperature   │    TDS Level   │  Water  │
+│                │                │                │  Level  │
+│                │                │                │         │
+├────────────────┴────────────────┴────────────────┴─────────┤
+│                                                            │
+│                         Tabs Panel                         │
+│                                                            │
+├────────┬─────────┬───────────┬──────────────┬─────────────┤
+│        │         │           │              │             │
+│ Stats  │ Thresh. │ Calibr.   │ Diagnostics  │ Settings    │
+│        │         │           │              │             │
+└────────┴─────────┴───────────┴──────────────┴─────────────┘
+```
+
 ## Edit Methods
 
 1. **Using Lovable**:
@@ -42,4 +63,22 @@ npm run dev
 4. **GitHub Codespaces**:
    - Launch a codespace from repository
    - Edit in cloud environment
+
+## Application Structure
+
+```
+┌────────────────┐     ┌─────────────────┐     ┌──────────────┐
+│                │     │                 │     │              │
+│   Components   │◄───►│ Context/Hooks   │◄───►│   Services   │
+│                │     │                 │     │              │
+└────────────────┘     └─────────────────┘     └──────────────┘
+        │                      │                      │
+        │                      │                      │
+        ▼                      ▼                      ▼
+┌────────────────────────────────────────────────────────────┐
+│                                                            │
+│                      App.tsx (Main App)                    │
+│                                                            │
+└────────────────────────────────────────────────────────────┘
+```
 
