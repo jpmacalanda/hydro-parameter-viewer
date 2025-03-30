@@ -14,7 +14,7 @@ services:
       - hydroponics-network
     depends_on:
       - serial-monitor
-    restart: unless-stopped
+    restart: always
     healthcheck:
       test: ["CMD", "curl", "-k", "https://localhost/health"]
       interval: 30s
@@ -41,7 +41,7 @@ services:
       - RETRY_DELAY=3
     volumes:
       - ./logs:/app/logs
-    restart: unless-stopped
+    restart: always
     networks:
       - hydroponics-network
     # Add privilege setting for serial access
