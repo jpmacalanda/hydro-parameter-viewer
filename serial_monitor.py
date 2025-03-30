@@ -51,7 +51,11 @@ def generate_mock_data():
         # Log data in JSON format for easier parsing
         json_data = {"ph": ph, "temperature": temp, "waterLevel": water_level.upper(), "tds": tds}
         logger.info(f"Parsed data: {json.dumps(json_data)}")
+        
+        # Log in multiple formats to make parsing easier for web app
         logger.info(f"JSON parsed_data={json.dumps(json_data)}")
+        logger.info(f"JSON_DATA={json.dumps(json_data)}")
+        logger.info(f"SENSOR_DATA pH:{ph},temp:{temp},water:{water_level.upper()},tds:{tds}")
         
         # Also log in the format that the app is looking for
         logger.info(f"pH:{ph},temp:{temp},water:{water_level.upper()},tds:{tds}")
@@ -132,7 +136,11 @@ def main():
                                 # JSON format
                                 json_data = {"ph": ph, "temperature": temp, "waterLevel": water, "tds": tds}
                                 logger.info(f"Parsed data: {json.dumps(json_data)}")
+                                
+                                # Add multiple formats to make parsing easier 
                                 logger.info(f"JSON parsed_data={json.dumps(json_data)}")
+                                logger.info(f"JSON_DATA={json.dumps(json_data)}")
+                                logger.info(f"SENSOR_DATA pH:{ph},temp:{temp},water:{water},tds:{tds}")
                                 
                                 # Raw format
                                 logger.info(f"pH:{ph},temp:{temp},water:{water},tds:{tds}")

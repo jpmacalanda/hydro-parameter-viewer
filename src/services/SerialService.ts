@@ -27,7 +27,7 @@ class SerialService {
       });
     });
     
-    console.log("[SerialService] Initialized");
+    console.log("[DOCKER-LOG][SerialService] Initialized");
   }
 
   // Get current connection status
@@ -43,41 +43,42 @@ class SerialService {
   // Connect to the system - this now just means start using log parsing
   async connect(): Promise<boolean> {
     try {
-      console.log("[SerialService] Connecting to serial monitor logs");
+      console.log("[DOCKER-LOG][SerialService] Connecting to serial monitor logs");
       
       // Check if we should use mock data (based on environment variable)
       const mockDataFromEnv = process.env.MOCK_DATA === 'true' || false;
       this.useMockData = mockDataFromEnv;
-      console.log("[SerialService] Using mock data?", this.useMockData);
+      console.log("[DOCKER-LOG][SerialService] Environment MOCK_DATA:", process.env.MOCK_DATA);
+      console.log("[DOCKER-LOG][SerialService] Using mock data?", this.useMockData);
       
       if (this.useMockData) {
         // Use mock data if set in environment or logs not available
-        console.log("[SerialService] Setting up mock data");
+        console.log("[DOCKER-LOG][SerialService] Setting up mock data because MOCK_DATA is true");
         this.setupMockData();
       } else {
         // Set up log parser to get real data from logs
-        console.log("[SerialService] Setting up log parser");
+        console.log("[DOCKER-LOG][SerialService] Setting up log parser to use real data");
         logParserService.onData((data) => {
-          console.log("[SerialService] Received data from log parser:", data);
+          console.log("[DOCKER-LOG][SerialService] Received real data from log parser:", JSON.stringify(data));
           this.callbacks.forEach((callback, index) => {
-            console.log(`[SerialService] Sending data to callback #${index + 1}`);
+            console.log(`[DOCKER-LOG][SerialService] Sending real data to callback #${index + 1}:`, JSON.stringify(data));
             callback(data);
           });
         });
         
         // Start polling logs
-        console.log("[SerialService] Starting log polling");
+        console.log("[DOCKER-LOG][SerialService] Starting log polling");
         logParserService.startPolling();
       }
       
       this.isConnected = true;
-      console.log("[SerialService] Successfully connected, status:", this.isConnected);
+      console.log("[DOCKER-LOG][SerialService] Successfully connected, status:", this.isConnected, "using mock data:", this.useMockData);
       return true;
     } catch (error) {
-      console.error("[SerialService] Failed to connect:", error);
+      console.error("[DOCKER-LOG][SerialService] Failed to connect:", error);
       
       // Fall back to mock data on error
-      console.log("[SerialService] Falling back to mock data");
+      console.log("[DOCKER-LOG][SerialService] Falling back to mock data due to error");
       this.useMockData = true;
       this.setupMockData();
       return true;
@@ -86,67 +87,67 @@ class SerialService {
 
   // Set up mock data generation
   private setupMockData(): void {
-    console.log("[SerialService] Setting up mock data service");
+    console.log("[DOCKER-LOG][SerialService] Setting up mock data service");
     mockDataService.onData((data) => {
-      console.log("[SerialService] Received mock data:", data);
+      console.log("[DOCKER-LOG][SerialService] Received mock data:", JSON.stringify(data));
       this.callbacks.forEach((callback, index) => {
-        console.log(`[SerialService] Sending mock data to callback #${index + 1}`);
+        console.log(`[DOCKER-LOG][SerialService] Sending mock data to callback #${index + 1}:`, JSON.stringify(data));
         callback(data);
       });
     });
     mockDataService.onRawMessage((message) => {
-      console.log("[SerialService] Received raw mock message:", message);
+      console.log("[DOCKER-LOG][SerialService] Received raw mock message:", message);
       this.rawCallbacks.forEach((callback, index) => {
-        console.log(`[SerialService] Sending raw mock message to callback #${index + 1}`);
+        console.log(`[DOCKER-LOG][SerialService] Sending raw mock message to callback #${index + 1}`);
         callback(message);
       });
     });
     mockDataService.startMockDataEmission();
     this.isConnected = true;
     this.useMockData = true;
-    console.log("[SerialService] Mock data setup complete, isConnected:", this.isConnected);
+    console.log("[DOCKER-LOG][SerialService] Mock data setup complete, isConnected:", this.isConnected, "useMockData:", this.useMockData);
   }
 
   // Disconnect from the service
   async disconnect(): Promise<void> {
-    console.log("[SerialService] Disconnecting, current connection status:", this.isConnected);
+    console.log("[DOCKER-LOG][SerialService] Disconnecting, current connection status:", this.isConnected, "using mock data:", this.useMockData);
     this.isConnected = false;
     
     // Stop mock data if it's running
-    console.log("[SerialService] Stopping mock data");
+    console.log("[DOCKER-LOG][SerialService] Stopping mock data");
     mockDataService.stopMockDataEmission();
     
     // Stop log parser if it's running
-    console.log("[SerialService] Stopping log parser");
+    console.log("[DOCKER-LOG][SerialService] Stopping log parser");
     logParserService.stopPolling();
     
     // Clear callbacks
-    console.log("[SerialService] Clearing callbacks: data callbacks:", this.callbacks.length, "raw callbacks:", this.rawCallbacks.length);
+    console.log("[DOCKER-LOG][SerialService] Clearing callbacks: data callbacks:", this.callbacks.length, "raw callbacks:", this.rawCallbacks.length);
     this.callbacks = [];
     this.rawCallbacks = [];
     mockDataService.clearCallbacks();
-    console.log("[SerialService] Disconnected successfully, new status:", this.isConnected);
+    console.log("[DOCKER-LOG][SerialService] Disconnected successfully, new status:", this.isConnected);
   }
 
   // Register a callback to receive data
   onData(callback: DataCallback): void {
-    console.log("[SerialService] New data callback registered");
+    console.log("[DOCKER-LOG][SerialService] New data callback registered");
     this.callbacks.push(callback);
-    console.log("[SerialService] Total data callbacks:", this.callbacks.length);
+    console.log("[DOCKER-LOG][SerialService] Total data callbacks:", this.callbacks.length);
   }
   
   // Register a callback to receive raw messages
   onRawMessage(callback: RawMessageCallback): void {
-    console.log("[SerialService] New raw message callback registered");
+    console.log("[DOCKER-LOG][SerialService] New raw message callback registered");
     this.rawCallbacks.push(callback);
-    console.log("[SerialService] Total raw message callbacks:", this.rawCallbacks.length);
+    console.log("[DOCKER-LOG][SerialService] Total raw message callbacks:", this.rawCallbacks.length);
   }
   
   // Register a callback to receive error notifications
   onError(callback: ErrorCallback): void {
-    console.log("[SerialService] New error callback registered");
+    console.log("[DOCKER-LOG][SerialService] New error callback registered");
     this.errorCallbacks.push(callback);
-    console.log("[SerialService] Total error callbacks:", this.errorCallbacks.length);
+    console.log("[DOCKER-LOG][SerialService] Total error callbacks:", this.errorCallbacks.length);
   }
 }
 
