@@ -46,14 +46,16 @@ class SerialService {
       console.log("[DOCKER-LOG][SerialService] Connecting to serial monitor logs");
       
       // Check if we should use mock data (based on environment variable)
-      const mockDataFromEnv = import.meta.env.VITE_MOCK_DATA === 'true' || false;
+      // Default to false if the environment variable is not defined
+      const mockDataFromEnv = import.meta.env.VITE_MOCK_DATA === 'true';
       this.useMockData = mockDataFromEnv;
-      console.log("[DOCKER-LOG][SerialService] Environment MOCK_DATA:", import.meta.env.VITE_MOCK_DATA);
+      
+      console.log("[DOCKER-LOG][SerialService] Environment VITE_MOCK_DATA:", import.meta.env.VITE_MOCK_DATA);
       console.log("[DOCKER-LOG][SerialService] Using mock data?", this.useMockData);
       
       if (this.useMockData) {
         // Use mock data if set in environment or logs not available
-        console.log("[DOCKER-LOG][SerialService] Setting up mock data because MOCK_DATA is true");
+        console.log("[DOCKER-LOG][SerialService] Setting up mock data because VITE_MOCK_DATA is true");
         this.setupMockData();
       } else {
         // Set up log parser to get real data from logs

@@ -27,7 +27,7 @@ const ConnectionControl: React.FC<ConnectionControlProps> = ({
     console.log("[DOCKER-LOG][ConnectionControl] Component mounted");
     
     // Log environment variables - use import.meta.env instead of process.env
-    console.log("[DOCKER-LOG][ConnectionControl] Environment MOCK_DATA:", import.meta.env.VITE_MOCK_DATA);
+    console.log("[DOCKER-LOG][ConnectionControl] Environment VITE_MOCK_DATA:", import.meta.env.VITE_MOCK_DATA);
     
     const handleArduinoError = (event: Event) => {
       const customEvent = event as CustomEvent;
