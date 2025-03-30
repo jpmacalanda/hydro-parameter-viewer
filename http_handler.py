@@ -4,7 +4,6 @@ import http
 import json
 import websockets
 from datetime import datetime
-from websockets.http import Response
 
 logger = logging.getLogger("hydroponics_server")
 
@@ -60,7 +59,7 @@ async def http_handler(path, request_headers):
     # Simple health check
     if path_str == '/health' or path_str == '/':
         logger.info(f"Received HTTP request to {path_str}")
-        return Response(status_code=200, headers=cors_headers, body=b"healthy\n")
+        return 200, cors_headers, b"healthy\n"
     
     # API endpoint
     if path_str == '/api/status':
@@ -79,7 +78,7 @@ async def http_handler(path, request_headers):
             ('Access-Control-Allow-Origin', '*'),
         ]
         
-        return Response(status_code=200, headers=json_headers, body=json_body)
+        return 200, json_headers, json_body
     
     # For any other path, also return 200 OK with info
     logger.info(f"Received HTTP request to unknown path: {path_str}")
@@ -94,4 +93,4 @@ async def http_handler(path, request_headers):
         "- /api/status    - Server status in JSON format\n"
     ).encode('utf-8')
     
-    return Response(status_code=200, headers=cors_headers, body=body)
+    return 200, cors_headers, body

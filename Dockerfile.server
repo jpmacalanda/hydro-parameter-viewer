@@ -11,7 +11,8 @@ RUN apt-get update && apt-get install -y \
     lsof \
     && rm -rf /var/lib/apt/lists/*
 
-RUN pip install websockets asyncio pyserial netifaces
+# Pin the websockets version to a known working version 
+RUN pip install websockets==10.4 asyncio pyserial netifaces
 
 # Create logs directory
 RUN mkdir -p /app/logs && chmod 777 /app/logs
