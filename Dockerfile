@@ -14,16 +14,19 @@ COPY docker/nginx.conf /etc/nginx/conf.d/default.conf
 RUN rm -f /etc/nginx/conf.d/default.conf.default
 
 # Install tools for debugging
-RUN apk add --no-cache curl openssl dos2unix
+RUN apk add --no-cache curl openssl
 
-# Create SSL directory with proper permissions
+# Create SSL directory
 RUN mkdir -p /etc/nginx/ssl && \
     chmod 755 /etc/nginx/ssl
 
-# Copy entrypoint script with proper handling for line endings
+# Copy entrypoint script
 COPY docker-entrypoint.sh /docker-entrypoint.sh
-RUN dos2unix /docker-entrypoint.sh && \
+
+# Ensure script has the correct line endings and is executable
+# We directly modify the file to ensure UNIX line endings
+RUN sed -i 's/\r$//' /docker-entrypoint.sh && \
     chmod +x /docker-entrypoint.sh
 
 EXPOSE 80 443
-CMD ["/docker-entrypoint.sh"]
+CMD ["/bin/sh", "/docker-entrypoint.sh"]
