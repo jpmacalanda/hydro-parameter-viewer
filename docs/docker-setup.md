@@ -4,55 +4,32 @@
 ## Prerequisites
 
 - Docker installed
-- Docker Compose installed (optional)
+- Docker Compose installed
 
 ## SSL Certificates
 
-Before starting the containers, generate SSL certificates:
+Before starting the containers, you can either:
+
+1. Let the containers automatically generate SSL certificates when they start
+2. Generate SSL certificates manually:
 
 ```bash
-# Make the script executable
-chmod +x generate-ssl-certs.sh
+# Create ssl directory
+mkdir -p ./ssl
 
-# Run the script
-./generate-ssl-certs.sh
+# Generate certificates
+openssl req -x509 -nodes -days 365 -newkey rsa:2048 \
+  -keyout ./ssl/nginx.key -out ./ssl/nginx.crt \
+  -subj "/C=US/ST=State/L=City/O=Hydroponics/CN=192.168.1.34" \
+  -addext "subjectAltName = IP:192.168.1.34,IP:127.0.0.1,DNS:localhost"
+
+# Set proper permissions
+chmod 755 ./ssl
+chmod 644 ./ssl/nginx.crt
+chmod 640 ./ssl/nginx.key
 ```
 
-If you encounter a "command not found" error, ensure the script has executable permissions:
-
-```bash
-# Make the script executable
-sudo chmod +x generate-ssl-certs.sh
-
-# Run the script
-sudo ./generate-ssl-certs.sh
-```
-
-## Web Application Container
-
-1. **Build the container**:
-```bash
-docker build -t hydroponics-monitor .
-```
-
-2. **Run the container**:
-```bash
-docker run -d -p 80:80 -p 443:443 -v $(pwd)/ssl:/etc/nginx/ssl --name hydroponics-app hydroponics-monitor
-```
-
-## WebSocket Server Container
-
-1. **Build the container**:
-```bash
-docker build -f Dockerfile.server -t hydroponics-server .
-```
-
-2. **Run the container**:
-```bash
-docker run -d --device=/dev/ttyUSB0 -p 8081:8081 -v $(pwd)/ssl:/etc/nginx/ssl -e USE_SSL=true --name hydroponics-ws hydroponics-server
-```
-
-## Using Docker Compose
+## Starting with Docker Compose (Recommended)
 
 1. **Start all services**:
 ```bash
@@ -61,7 +38,7 @@ docker-compose up -d
 
 2. **View logs**:
 ```bash
-docker-compose logs
+docker-compose logs -f
 ```
 
 3. **Stop services**:
@@ -73,6 +50,32 @@ docker-compose down
 ```bash
 docker-compose down
 docker-compose up -d --build
+```
+
+## Running Containers Individually
+
+### Web Application Container
+
+1. **Build the container**:
+```bash
+docker build -t hydroponics-monitor .
+```
+
+2. **Run the container**:
+```bash
+docker run -d -p 80:80 -p 443:443 -v $(pwd)/ssl:/etc/nginx/ssl --name hydroponics-app hydroponics-monitor
+```
+
+### WebSocket Server Container
+
+1. **Build the container**:
+```bash
+docker build -f Dockerfile.server -t hydroponics-server .
+```
+
+2. **Run the container**:
+```bash
+docker run -d --device=/dev/ttyUSB0 -p 8081:8081 -v $(pwd)/ssl:/etc/nginx/ssl -e USE_SSL=true --name hydroponics-ws hydroponics-server
 ```
 
 ## Accessing the Application
@@ -91,110 +94,89 @@ https://192.168.1.34
 
 Note: When accessing via HTTPS, your browser will show a security warning about the certificate being self-signed. This is normal for local development. Click "Advanced" and then "Proceed" to access the application.
 
-## Troubleshooting on Raspberry Pi
+## Troubleshooting
 
-### USB Device Access
+### Common Docker Issues
 
-If Docker can't access the Arduino:
+1. **Container restarts repeatedly (restart loop):**
+   ```bash
+   # Check what's causing the restart
+   docker logs hydroponics-webapp
+   
+   # If it's permission-related, fix permissions on SSL directory
+   chmod -R 755 ./ssl
+   chmod 644 ./ssl/nginx.crt
+   chmod 640 ./ssl/nginx.key
+   ```
 
-1. **Check Arduino detection**:
+2. **"Connection Refused" errors:**
+   - Check if containers are running: `docker ps`
+   - Check if ports are open: `sudo netstat -tulpn | grep -E '80|443|8081'`
+   - Verify container logs: `docker-compose logs`
+
+### Network Connectivity 
+
+1. **Check if containers can communicate:**
+   ```bash
+   docker exec hydroponics-webapp ping websocket
+   ```
+
+2. **Check if services are responding:**
+   ```bash
+   # Test web server directly
+   curl -k https://localhost
+   
+   # Test WebSocket server
+   curl -k https://localhost:8081
+   ```
+
+### SSL Certificate Issues
+
+1. **Regenerate certificates with correct IP:**
+   ```bash
+   rm -rf ./ssl/*
+   
+   openssl req -x509 -nodes -days 365 -newkey rsa:2048 \
+     -keyout ./ssl/nginx.key -out ./ssl/nginx.crt \
+     -subj "/C=US/ST=State/L=City/O=Hydroponics/CN=192.168.1.34" \
+     -addext "subjectAltName = IP:192.168.1.34,IP:127.0.0.1,DNS:localhost"
+   ```
+
+2. **Fix certificate permissions:**
+   ```bash
+   chmod 755 ./ssl
+   chmod 644 ./ssl/nginx.crt
+   chmod 640 ./ssl/nginx.key
+   ```
+
+### Arduino/Serial Issues
+
+1. **Check if the Arduino is detected:**
+   ```bash
+   ls -l /dev/ttyUSB*
+   ```
+
+2. **Fix permissions for the device:**
+   ```bash
+   sudo chmod 666 /dev/ttyUSB0
+   ```
+
+3. **Verify the device is accessible in the container:**
+   ```bash
+   docker exec hydroponics-websocket ls -l /dev/ttyUSB0
+   ```
+
+### Container Restart
+
+If all else fails, completely recreate containers:
+
 ```bash
-ls -l /dev/ttyUSB*
-```
-
-2. **Set permissions for the device**:
-```bash
-sudo chmod 666 /dev/ttyUSB0
-```
-
-3. **Add your user to the dialout group** (then logout and login):
-```bash
-sudo usermod -a -G dialout $USER
-```
-
-### Connection Issues
-
-1. **Monitor logs for WebSocket server**:
-```bash
-docker logs hydroponics-ws -f
-```
-
-2. **Check NGINX logs**:
-```bash
-docker logs hydroponics-app -f
-```
-
-### Connection Refused Error
-
-If you see "Connection Refused" errors when accessing your Raspberry Pi:
-
-1. **Check if containers are running**:
-```bash
-docker ps
-```
-
-2. **Verify NGINX is listening on the correct ports**:
-```bash
-docker exec hydroponics-app netstat -tulpn | grep nginx
-```
-
-3. **Check if ports are open and accessible**:
-```bash
-sudo netstat -tulpn | grep -E '80|443|8081'
-```
-
-4. **Restart docker service and containers**:
-```bash
-sudo systemctl restart docker
+# Stop and remove all containers
 docker-compose down
-docker-compose up -d
-```
 
-5. **Check for firewall issues**:
-```bash
-sudo iptables -L
-# If you have UFW enabled, allow the ports
-sudo ufw allow 80/tcp
-sudo ufw allow 443/tcp
-sudo ufw allow 8081/tcp
-```
+# Remove any persisted volumes if needed
+docker volume prune -f
 
-6. **Verify SSL certificate issues**:
-```bash
-# Check if certificates exist
-ls -la ./ssl/
-# Regenerate certificates with your Raspberry Pi's IP
-./generate-ssl-certs.sh 192.168.1.34
-```
-
-### Browser Certificate Issues
-
-If you get browser security warnings:
-
-1. **Chrome/Firefox**: Click "Advanced" and then "Proceed to site"
-2. **Add exception**: Some browsers require you to add security exceptions for self-signed certificates
-3. **Try using HTTP first**: Access via http://192.168.1.34 initially
-
-### If still having issues:
-
-1. **Restart the containers**:
-```bash
-docker-compose down
-docker-compose up -d
-```
-
-2. **Verify port access**:
-```bash
-curl -v http://localhost:8081
-curl -k -v https://localhost:8081  # -k ignores certificate validation
-```
-
-3. **Verify USB device is mounted in container**:
-```bash
-docker exec -it hydroponics-ws ls -l /dev/ttyUSB0
-```
-
-4. **Check container logs for any error messages**:
-```bash
-docker-compose logs --tail=100
+# Rebuild and restart
+docker-compose up -d --build
 ```

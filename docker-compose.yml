@@ -4,6 +4,7 @@ version: '3'
 services:
   webapp:
     build: .
+    container_name: hydroponics-webapp
     ports:
       - "80:80"
       - "443:443"
@@ -14,11 +15,19 @@ services:
     depends_on:
       - websocket
     restart: unless-stopped
+    # Add healthcheck to monitor container health
+    healthcheck:
+      test: ["CMD", "curl", "-f", "http://localhost:80"]
+      interval: 30s
+      timeout: 10s
+      retries: 3
+      start_period: 40s
 
   websocket:
     build:
       context: .
       dockerfile: Dockerfile.server
+    container_name: hydroponics-websocket
     ports:
       - "8081:8081"
     devices:
@@ -26,11 +35,18 @@ services:
     volumes:
       - ./ssl:/etc/nginx/ssl
     environment:
-      - USE_SSL=true  # Enable SSL for WebSocket on Raspberry Pi
+      - USE_SSL=true  # Enable SSL for WebSocket
       - MOCK_DATA=false  # Disable mock data since real Arduino is connected
     networks:
       - hydroponics-network
     restart: unless-stopped
+    # Add healthcheck for websocket service
+    healthcheck:
+      test: ["CMD", "curl", "-f", "http://localhost:8081"]
+      interval: 30s
+      timeout: 10s
+      retries: 3
+      start_period: 40s
 
 networks:
   hydroponics-network:
