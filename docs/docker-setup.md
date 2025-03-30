@@ -49,7 +49,7 @@ docker build -f Dockerfile.server -t hydroponics-server .
 
 2. **Run the container**:
 ```bash
-docker run -d --device=/dev/ttyUSB0 -p 8081:8081 -v $(pwd)/ssl:/etc/nginx/ssl -e USE_SSL=false --name hydroponics-ws hydroponics-server
+docker run -d --device=/dev/ttyUSB0 -p 8081:8081 -v $(pwd)/ssl:/etc/nginx/ssl -e USE_SSL=true --name hydroponics-ws hydroponics-server
 ```
 
 ## Using Docker Compose
@@ -75,6 +75,22 @@ docker-compose down
 docker-compose up -d --build
 ```
 
+## Accessing the Application
+
+You can access the application in two ways:
+
+1. **HTTP** (automatically redirects to HTTPS):
+```
+http://192.168.1.34
+```
+
+2. **HTTPS** (recommended):
+```
+https://192.168.1.34
+```
+
+Note: When accessing via HTTPS, your browser will show a security warning about the certificate being self-signed. This is normal for local development. Click "Advanced" and then "Proceed" to access the application.
+
 ## Troubleshooting on Raspberry Pi
 
 ### USB Device Access
@@ -98,16 +114,12 @@ sudo usermod -a -G dialout $USER
 
 ### Connection Issues
 
-1. **For best results, use HTTP instead of HTTPS** on Raspberry Pi:
-   - Access `http://raspberrypi.local` or `http://[RPI-IP-ADDRESS]` 
-   - The app is configured to work best with HTTP on Raspberry Pi
-
-2. **Monitor logs for WebSocket server**:
+1. **Monitor logs for WebSocket server**:
 ```bash
 docker logs hydroponics-ws -f
 ```
 
-3. **Check NGINX logs**:
+2. **Check NGINX logs**:
 ```bash
 docker logs hydroponics-app -f
 ```
@@ -147,6 +159,22 @@ sudo ufw allow 443/tcp
 sudo ufw allow 8081/tcp
 ```
 
+6. **Verify SSL certificate issues**:
+```bash
+# Check if certificates exist
+ls -la ./ssl/
+# Regenerate certificates with your Raspberry Pi's IP
+./generate-ssl-certs.sh 192.168.1.34
+```
+
+### Browser Certificate Issues
+
+If you get browser security warnings:
+
+1. **Chrome/Firefox**: Click "Advanced" and then "Proceed to site"
+2. **Add exception**: Some browsers require you to add security exceptions for self-signed certificates
+3. **Try using HTTP first**: Access via http://192.168.1.34 initially
+
 ### If still having issues:
 
 1. **Restart the containers**:
@@ -158,6 +186,7 @@ docker-compose up -d
 2. **Verify port access**:
 ```bash
 curl -v http://localhost:8081
+curl -k -v https://localhost:8081  # -k ignores certificate validation
 ```
 
 3. **Verify USB device is mounted in container**:

@@ -26,7 +26,7 @@ services:
     volumes:
       - ./ssl:/etc/nginx/ssl
     environment:
-      - USE_SSL=false  # Use non-SSL for WebSocket on Raspberry Pi
+      - USE_SSL=true  # Enable SSL for WebSocket on Raspberry Pi
       - MOCK_DATA=false  # Disable mock data since real Arduino is connected
     networks:
       - hydroponics-network
