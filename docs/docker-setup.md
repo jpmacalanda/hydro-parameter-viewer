@@ -18,6 +18,16 @@ chmod +x generate-ssl-certs.sh
 ./generate-ssl-certs.sh
 ```
 
+If you encounter a "command not found" error, ensure the script has executable permissions:
+
+```bash
+# Make the script executable
+sudo chmod +x generate-ssl-certs.sh
+
+# Run the script
+sudo ./generate-ssl-certs.sh
+```
+
 ## Web Application Container
 
 1. **Build the container**:
