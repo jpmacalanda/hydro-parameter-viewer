@@ -98,7 +98,8 @@ const ConnectionControl: React.FC<ConnectionControlProps> = ({
           const portName = selectedPort.displayName;
           
           try {
-            await navigator.serial.requestPort({filters: []});
+            // The issue is here - we're passing filters to requestPort incorrectly
+            await navigator.serial.requestPort();
             setPortStatus({
               busy: false,
               message: `Port ${portName} is available.`
@@ -126,7 +127,7 @@ const ConnectionControl: React.FC<ConnectionControlProps> = ({
   
   useEffect(() => {
     if (selectedPortId) {
-      setTimeout(checkPortUsage, 100);
+      setTimeout(() => checkPortUsage(), 100);
     }
   }, [selectedPortId]);
   
