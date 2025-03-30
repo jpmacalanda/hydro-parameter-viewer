@@ -4,7 +4,7 @@ import { Button } from "@/components/ui/button";
 import serialService from "@/services/SerialService";
 import { toast } from "sonner";
 import { Alert, AlertTitle, AlertDescription } from "@/components/ui/alert";
-import { Info, Zap, List, RefreshCcw, Shield } from "lucide-react";
+import { Info, Zap, List, RefreshCcw, Shield, Wifi, WifiOff, Usb, Bug, AlertTriangle } from "lucide-react";
 import { Label } from "@/components/ui/label";
 import { Switch } from "@/components/ui/switch";
 import { Tooltip, TooltipContent, TooltipProvider, TooltipTrigger } from "@/components/ui/tooltip";
@@ -28,6 +28,8 @@ const ConnectionControl: React.FC<ConnectionControlProps> = ({
   const [loadingPorts, setLoadingPorts] = useState(false);
   const isWebSerialSupported = serialService.isSupported;
   const isSecurityRestricted = serialService.isSecurityRestricted;
+  const isRaspberryPi = window.location.hostname === 'raspberrypi.local' || 
+                        window.location.hostname.startsWith('192.168.');
   
   useEffect(() => {
     // Listen for Arduino errors
@@ -137,13 +139,43 @@ const ConnectionControl: React.FC<ConnectionControlProps> = ({
   
   return (
     <div className="space-y-4 my-4">
+      {/* Raspberry Pi specific message */}
+      {isRaspberryPi && (
+        <Alert variant="default" className="mb-4 border-blue-400 text-blue-800 bg-blue-50">
+          <Wifi className="h-4 w-4" />
+          <AlertTitle>Running on Raspberry Pi</AlertTitle>
+          <AlertDescription>
+            For best results on Raspberry Pi:
+            <ul className="list-disc list-inside mt-2">
+              <li>Use HTTP instead of HTTPS (no certificate issues)</li>
+              <li>Enable auto-detect hardware (recommended)</li>
+              <li>Ensure the Arduino is connected to USB port</li>
+              <li>Make sure your user has permission to access /dev/ttyUSB0</li>
+            </ul>
+          </AlertDescription>
+        </Alert>
+      )}
+
       {!isWebSerialSupported && (
         <Alert variant="destructive" className="mb-4">
           <Info className="h-4 w-4" />
           <AlertTitle>Web Serial API not supported</AlertTitle>
           <AlertDescription>
-            Your browser does not support the Web Serial API. 
-            Try using Chrome or Edge. The app will use simulated data instead.
+            {isRaspberryPi ? (
+              <>
+                On Raspberry Pi, this is expected. The system will automatically use:
+                <ul className="list-disc list-inside mt-2">
+                  <li>WebSocket connection (preferred)</li>
+                  <li>Mock data (if WebSocket fails)</li>
+                </ul>
+                Press "Connect to Arduino" to begin.
+              </>
+            ) : (
+              <>
+                Your browser does not support the Web Serial API. 
+                Try using Chrome or Edge. The app will use simulated data instead.
+              </>
+            )}
           </AlertDescription>
         </Alert>
       )}
@@ -160,7 +192,11 @@ const ConnectionControl: React.FC<ConnectionControlProps> = ({
               <li>non-secure contexts (non-HTTPS sites)</li>
               <li>when browser permissions are denied</li>
             </ul>
-            Try opening this app in a new Chrome or Edge window, or enable auto-detect to use mock data.
+            {isRaspberryPi ? (
+              <>Press "Connect to Arduino" to use WebSocket connection instead.</>
+            ) : (
+              <>Try opening this app in a new Chrome or Edge window, or enable auto-detect to use mock data.</>
+            )}
           </AlertDescription>
         </Alert>
       )}

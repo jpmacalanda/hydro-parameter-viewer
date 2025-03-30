@@ -69,19 +69,57 @@ docker-compose logs
 docker-compose down
 ```
 
-## Troubleshooting HTTPS
+## Troubleshooting on Raspberry Pi
 
-If you're having issues with HTTPS:
+### USB Device Access
 
-1. **Browser Security Warnings**: Since we're using self-signed certificates, you'll need to:
-   - Click "Advanced" and "Proceed to site" in your browser
-   - Or add the certificate to your system's trusted certificates
+If Docker can't access the Arduino:
 
-2. **WebSocket Connection Issues**:
-   - Check the browser console for WebSocket errors
-   - Verify both HTTP (port 80) and HTTPS (port 443) ports are accessible
-   - Ensure the WebSocket server port (8081) is accessible
+1. **Check Arduino detection**:
+```bash
+ls -l /dev/ttyUSB*
+```
 
-3. **Mixed Content Warnings**: If loading the site via HTTPS but WebSockets use WS (not WSS):
-   - Check the server logs to ensure SSL is enabled for the WebSocket server
-   - Verify the certificate paths are correct in the WebSocket server
+2. **Set permissions for the device**:
+```bash
+sudo chmod 666 /dev/ttyUSB0
+```
+
+3. **Add your user to the dialout group** (then logout and login):
+```bash
+sudo usermod -a -G dialout $USER
+```
+
+### Connection Issues
+
+1. **For best results, use HTTP instead of HTTPS** on Raspberry Pi:
+   - Access `http://raspberrypi.local` or `http://[RPI-IP-ADDRESS]` 
+   - The app is configured to work best with HTTP on Raspberry Pi
+
+2. **Monitor logs for WebSocket server**:
+```bash
+docker logs hydroponics-ws -f
+```
+
+3. **Check NGINX logs**:
+```bash
+docker logs hydroponics-app -f
+```
+
+### If still having issues:
+
+1. **Restart the containers**:
+```bash
+docker-compose down
+docker-compose up -d
+```
+
+2. **Verify port access**:
+```bash
+curl -v http://localhost:8081
+```
+
+3. **Verify USB device is mounted in container**:
+```bash
+docker exec -it hydroponics-ws ls -l /dev/ttyUSB0
+```

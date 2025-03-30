@@ -63,6 +63,12 @@ class WebSocketService {
   }
   
   private getDefaultWebSocketUrl(): string {
+    // For Raspberry Pi direct connection, always use HTTP/ws protocol
+    // because self-signed certificates won't be trusted anyway
+    if (this.isRaspberryPi()) {
+      return `ws://${window.location.hostname}:8081`;
+    }
+    
     // Determine protocol based on current page protocol
     const protocol = window.location.protocol === 'https:' ? 'wss:' : 'ws:';
     
@@ -75,6 +81,11 @@ class WebSocketService {
     // For development, connect directly to the WebSocket port
     const port = '8081';
     return `${protocol}//${window.location.hostname}:${port}`;
+  }
+  
+  private isRaspberryPi(): boolean {
+    return window.location.hostname === 'raspberrypi.local' || 
+           window.location.hostname.startsWith('192.168.');
   }
   
   onData(callback: DataCallback) {
