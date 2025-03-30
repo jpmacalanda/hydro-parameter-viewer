@@ -16,7 +16,7 @@ services:
     depends_on:
       - websocket
     restart: unless-stopped
-    # Improved healthcheck with longer timeouts for initial startup
+    # Improved healthcheck with longer timeouts
     healthcheck:
       test: ["CMD", "curl", "-k", "https://localhost/health"]
       interval: 30s
@@ -39,12 +39,11 @@ services:
     volumes:
       - ./ssl:/etc/nginx/ssl
     environment:
-      - USE_SSL=true  # Enable SSL for WebSocket
-      - MOCK_DATA=true  # Use mock data for testing initially
+      - USE_SSL=true
+      - MOCK_DATA=true
     networks:
       - hydroponics-network
     restart: unless-stopped
-    # Improved healthcheck for websocket service
     healthcheck:
       test: ["CMD", "curl", "-k", "https://localhost:8081/health" , "||", "exit", "0"]
       interval: 30s

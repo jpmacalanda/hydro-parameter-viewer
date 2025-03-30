@@ -13,20 +13,27 @@ COPY docker/nginx.conf /etc/nginx/conf.d/default.conf
 # Remove the default nginx configuration
 RUN rm -f /etc/nginx/conf.d/default.conf.default
 
-# Install tools for debugging
-RUN apk add --no-cache curl openssl
+# Install essential tools
+RUN apk add --no-cache curl openssl busybox
 
 # Create SSL directory
 RUN mkdir -p /etc/nginx/ssl && \
     chmod 755 /etc/nginx/ssl
 
-# Copy entrypoint script
+# Copy entrypoint script and fix line endings
 COPY docker-entrypoint.sh /docker-entrypoint.sh
 
-# Ensure script has the correct line endings and is executable
-# We directly modify the file to ensure UNIX line endings
-RUN sed -i 's/\r$//' /docker-entrypoint.sh && \
-    chmod +x /docker-entrypoint.sh
+# Critical fix: Ensure the script has proper line endings and is executable
+# Convert CRLF to LF and ensure proper permissions
+RUN cat /docker-entrypoint.sh | tr -d '\r' > /tmp/fixed-entrypoint.sh && \
+    mv /tmp/fixed-entrypoint.sh /docker-entrypoint.sh && \
+    chmod 755 /docker-entrypoint.sh && \
+    cat /docker-entrypoint.sh | head -1 | grep -q '^#!/bin/sh' || echo "Warning: Entrypoint does not start with proper shebang"
+
+# Verify script is readable
+RUN cat /docker-entrypoint.sh
 
 EXPOSE 80 443
-CMD ["/bin/sh", "/docker-entrypoint.sh"]
+
+# Use sh to execute the script instead of direct execution
+CMD ["sh", "/docker-entrypoint.sh"]
