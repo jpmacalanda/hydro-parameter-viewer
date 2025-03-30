@@ -35,9 +35,11 @@ services:
       - "/dev/ttyUSB0:/dev/ttyUSB0"
     volumes:
       - ./ssl:/etc/nginx/ssl
+      - ./logs:/app/logs
     environment:
       - USE_SSL=false  # Set to false to avoid SSL issues during debugging
       - MOCK_DATA=true  # Use mock data for testing
+      - LOG_LEVEL=DEBUG  # Set log level to DEBUG for more detailed logs
     networks:
       - hydroponics-network
     restart: unless-stopped

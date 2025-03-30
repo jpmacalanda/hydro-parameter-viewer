@@ -7,7 +7,10 @@ RUN apt-get update && apt-get install -y \
     python3-serial \
     && rm -rf /var/lib/apt/lists/*
 
-RUN pip install websockets asyncio pyserial
+RUN pip install websockets asyncio pyserial netifaces
+
+# Create logs directory
+RUN mkdir -p /app/logs && chmod 777 /app/logs
 
 # Copy server script
 COPY hydroponics_server.py .

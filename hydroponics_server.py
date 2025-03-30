@@ -10,16 +10,41 @@ import time
 import random
 import socket
 import logging
+from datetime import datetime
+
+# Create logs directory if it doesn't exist
+os.makedirs("logs", exist_ok=True)
 
 # Set up logging
+LOG_LEVEL = os.environ.get('LOG_LEVEL', 'INFO').upper()
+LOG_LEVELS = {
+    'DEBUG': logging.DEBUG,
+    'INFO': logging.INFO,
+    'WARNING': logging.WARNING,
+    'ERROR': logging.ERROR,
+    'CRITICAL': logging.CRITICAL
+}
+
+log_level = LOG_LEVELS.get(LOG_LEVEL, logging.INFO)
+
+# Set up file handler with rotation
+log_file = f"logs/hydroponics_server_{datetime.now().strftime('%Y%m%d_%H%M%S')}.log"
+file_handler = logging.FileHandler(log_file)
+file_handler.setFormatter(logging.Formatter('%(asctime)s - %(levelname)s - %(message)s'))
+
+# Set up console handler
+console_handler = logging.StreamHandler()
+console_handler.setFormatter(logging.Formatter('%(asctime)s - %(levelname)s - %(message)s'))
+
+# Configure root logger
 logging.basicConfig(
-    level=logging.INFO,
-    format='%(asctime)s - %(levelname)s - %(message)s',
-    handlers=[
-        logging.StreamHandler()
-    ]
+    level=log_level,
+    handlers=[file_handler, console_handler]
 )
 logger = logging.getLogger("hydroponics_server")
+logger.setLevel(log_level)
+
+logger.info(f"Logging initialized at level {LOG_LEVEL} to {log_file}")
 
 # Configure these settings:
 SERIAL_PORT = "/dev/ttyUSB0"  # Change to your Arduino's serial port
@@ -38,6 +63,7 @@ logger.info(f"- Baud rate: {BAUD_RATE}")
 logger.info(f"- WebSocket port: {WS_PORT}")
 logger.info(f"- SSL enabled: {USE_SSL}")
 logger.info(f"- Mock data: {MOCK_DATA}")
+logger.info(f"- Log level: {LOG_LEVEL}")
 
 # Check if the port is already in use
 def is_port_in_use(port):
@@ -55,12 +81,14 @@ if is_port_in_use(WS_PORT):
 ser = None
 if not MOCK_DATA:
     try:
+        logger.debug(f"Attempting to open serial port {SERIAL_PORT} at {BAUD_RATE} baud")
         ser = serial.Serial(SERIAL_PORT, BAUD_RATE, timeout=1)
         logger.info(f"Serial connection established on {SERIAL_PORT}")
         
         # Flush initial data
         if ser.in_waiting:
-            logger.info(f"Flushing initial data: {ser.read(ser.in_waiting)}")
+            initial_data = ser.read(ser.in_waiting)
+            logger.info(f"Flushing initial data: {initial_data}")
             
     except serial.SerialException as e:
         logger.error(f"Error opening serial port: {e}")
@@ -82,42 +110,50 @@ connected_clients = set()
 
 async def handle_client(websocket, path):
     client_address = websocket.remote_address if hasattr(websocket, 'remote_address') else 'Unknown'
-    logger.info(f"Client connected: {client_address}")
+    client_ip = client_address[0] if isinstance(client_address, tuple) and len(client_address) > 0 else 'Unknown IP'
+    logger.info(f"Client connected from {client_ip} to path: {path}")
+    
+    # Log request headers for debugging
+    if hasattr(websocket, 'request_headers'):
+        logger.debug(f"Client request headers: {websocket.request_headers}")
     
     connected_clients.add(websocket)
     try:
         # Handle health check requests
         if path == "/health":
             await websocket.send("healthy")
-            logger.info(f"Sent health check response to {client_address}")
+            logger.info(f"Sent health check response to {client_ip}")
             return
             
         # Send initial success message
         try:
-            await websocket.send(json.dumps({
+            initial_data = {
                 "ph": 7.0,
                 "temperature": 25.0,
                 "waterLevel": "medium",
                 "tds": 650
-            }))
-            logger.info(f"Sent initial data to {client_address}")
+            }
+            await websocket.send(json.dumps(initial_data))
+            logger.info(f"Sent initial data to {client_ip}: {initial_data}")
         except Exception as e:
-            logger.error(f"Error sending initial data: {e}")
+            logger.error(f"Error sending initial data to {client_ip}: {e}")
         
         # Stay in this loop to handle incoming messages
         async for message in websocket:
             if message == "ping":
-                logger.info(f"Received ping from {client_address}, sending pong")
+                logger.debug(f"Received ping from {client_ip}, sending pong")
                 await websocket.send("pong")
+            else:
+                logger.debug(f"Received message from {client_ip}: {message}")
             
     except websockets.exceptions.ConnectionClosed as e:
-        logger.info(f"Connection closed by client: {client_address} - Code: {e.code}, Reason: {e.reason}")
+        logger.info(f"Connection closed by client: {client_ip} - Code: {e.code}, Reason: {e.reason}")
     except Exception as e:
-        logger.error(f"Error handling client: {e}")
+        logger.error(f"Error handling client {client_ip}: {e}")
     finally:
         if websocket in connected_clients:
             connected_clients.remove(websocket)
-            logger.info(f"Client disconnected: {client_address}")
+            logger.info(f"Client disconnected: {client_ip}")
 
 async def generate_mock_data():
     """Generate mock sensor data when no Arduino is connected"""
@@ -147,25 +183,35 @@ async def generate_mock_data():
         if connected_clients:
             message = json.dumps(data)
             websockets_to_remove = set()
+            client_count = len(connected_clients)
             
             for client in connected_clients:
                 try:
+                    client_address = client.remote_address if hasattr(client, 'remote_address') else 'Unknown'
+                    client_ip = client_address[0] if isinstance(client_address, tuple) and len(client_address) > 0 else 'Unknown IP'
                     await client.send(message)
-                except websockets.exceptions.ConnectionClosed:
+                    logger.debug(f"Sent mock data to client {client_ip}")
+                except websockets.exceptions.ConnectionClosed as e:
+                    logger.info(f"Connection closed during send: Code {e.code}, Reason: {e.reason}")
                     websockets_to_remove.add(client)
                 except Exception as e:
                     logger.error(f"Error sending mock data: {e}")
                     websockets_to_remove.add(client)
             
             # Remove any closed connections
-            connected_clients.difference_update(websockets_to_remove)
+            if websockets_to_remove:
+                connected_clients.difference_update(websockets_to_remove)
+                logger.info(f"Removed {len(websockets_to_remove)} closed connections")
                 
-            logger.info(f"Sent mock data to {len(connected_clients)} clients: {message}")
+            logger.info(f"Sent mock data to {client_count} clients: {message}")
+        else:
+            logger.debug("No clients connected, skipping mock data send")
         
         await asyncio.sleep(2)  # Send data every 2 seconds
 
 async def read_serial():
     if MOCK_DATA:
+        logger.info("Starting mock data generator")
         await generate_mock_data()
         return
     
@@ -183,6 +229,8 @@ async def read_serial():
                 buffer += data
                 last_message_time = current_time
                 no_data_warning_sent = False
+                
+                logger.debug(f"Read {len(data)} bytes from serial")
                 
                 # Process any complete lines ending with newline
                 lines = buffer.split('\n')
@@ -262,6 +310,7 @@ async def health_server(websocket, path):
     """Simple health check endpoint"""
     if path == "/health":
         await websocket.send("healthy")
+        logger.debug(f"Sent health check response to path {path}")
         await handle_client(websocket, path)  # Continue handling other messages
     else:
         # Forward to the main handler for normal WebSocket connections
@@ -307,6 +356,20 @@ async def main():
         if hostname == "raspberrypi":
             logger.info(f"  mDNS: ws://raspberrypi.local:{WS_PORT}")
             
+        # Log all network interfaces for debugging connection issues
+        logger.info("Available network interfaces:")
+        try:
+            import netifaces
+            for interface in netifaces.interfaces():
+                addresses = netifaces.ifaddresses(interface)
+                if netifaces.AF_INET in addresses:
+                    for address in addresses[netifaces.AF_INET]:
+                        logger.info(f"  {interface}: {address.get('addr', 'No IP')}")
+        except ImportError:
+            logger.info("  netifaces package not available, skipping interface enumeration")
+        except Exception as e:
+            logger.error(f"Error enumerating network interfaces: {e}")
+            
         server = await websockets.serve(
             health_server,  # Use the health-aware handler
             "0.0.0.0", 
@@ -336,6 +399,7 @@ async def main():
 
 if __name__ == "__main__":
     try:
+        logger.info("Starting WebSocket server main process")
         asyncio.run(main())
     except KeyboardInterrupt:
         logger.info("Server shutting down due to keyboard interrupt.")

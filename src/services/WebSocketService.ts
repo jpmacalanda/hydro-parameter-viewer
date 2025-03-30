@@ -20,6 +20,7 @@ class WebSocketService {
   private reconnectTimer: ReturnType<typeof setTimeout> | null = null;
   private debugMode = true; // Set to true to enable verbose logging
   private currentUrl: string = '';
+  private connectionStartTime: number = 0;
   
   connect(serverUrl: string = this.getDefaultWebSocketUrl()) {
     if (this.reconnectTimer) {
@@ -29,6 +30,7 @@ class WebSocketService {
     
     console.log(`Attempting WebSocket connection to: ${serverUrl}`);
     this.currentUrl = serverUrl;
+    this.connectionStartTime = Date.now();
     
     try {
       if (this.ws) {
@@ -36,10 +38,12 @@ class WebSocketService {
         this.ws = null;
       }
       
+      console.log(`[WebSocket] Creating new WebSocket instance at ${new Date().toISOString()}`);
       this.ws = new WebSocket(serverUrl);
       
       this.ws.onopen = () => {
-        console.log('WebSocket connection established successfully');
+        const connectionTime = Date.now() - this.connectionStartTime;
+        console.log(`[WebSocket] Connection established successfully after ${connectionTime}ms`);
         this.isConnected = true;
         this.reconnectAttempts = 0;
         this.lastMessageTime = Date.now();
@@ -55,7 +59,7 @@ class WebSocketService {
         
         if (this.ws && this.ws.readyState === WebSocket.OPEN) {
           this.ws.send('ping');
-          console.log('Sent initial ping');
+          console.log('[WebSocket] Sent initial ping');
         }
         
         this.startHealthCheck();
@@ -66,12 +70,12 @@ class WebSocketService {
           this.lastMessageTime = Date.now();
           
           if (event.data === "healthy") {
-            if (this.debugMode) console.log("Received health check response");
+            console.log("[WebSocket] Received health check response");
             return;
           }
           
           if (event.data === "pong") {
-            if (this.debugMode) console.log("Received pong response");
+            console.log("[WebSocket] Received pong response");
             return;
           }
           
@@ -79,17 +83,17 @@ class WebSocketService {
           let data;
           if (typeof event.data === 'string') {
             if (event.data.trim() === '') {
-              if (this.debugMode) console.log("Received empty message, ignoring");
+              console.log("[WebSocket] Received empty message, ignoring");
               return;
             }
             
             try {
               data = JSON.parse(event.data);
-              if (this.debugMode) console.log("Received data:", data);
+              console.log("[WebSocket] Received data:", data);
               
               // Validate data structure before proceeding
               if (!this.isValidData(data)) {
-                console.warn("Received invalid data structure:", data);
+                console.warn("[WebSocket] Received invalid data structure:", data);
                 return;
               }
               
@@ -98,24 +102,25 @@ class WebSocketService {
                   typeof data.temperature !== 'number' || 
                   typeof data.tds !== 'number' ||
                   !['low', 'medium', 'high'].includes(data.waterLevel)) {
-                console.warn("Data contains invalid types:", data);
+                console.warn("[WebSocket] Data contains invalid types:", data);
                 return;
               }
               
               this.callbacks.forEach(callback => callback(data));
             } catch (parseError) {
-              console.error('Error parsing WebSocket data:', parseError, 'Raw data:', event.data);
+              console.error('[WebSocket] Error parsing WebSocket data:', parseError, 'Raw data:', event.data);
               this.notifyError(new Error('Invalid data format from server'));
             }
           }
         } catch (error) {
-          console.error('Error handling WebSocket message:', error);
+          console.error('[WebSocket] Error handling WebSocket message:', error);
           this.notifyError(new Error('Error processing WebSocket message'));
         }
       };
       
       this.ws.onclose = (event) => {
-        console.log(`WebSocket connection closed. Code: ${event.code}, Reason: ${event.reason}`);
+        const connectionDuration = Date.now() - this.connectionStartTime;
+        console.log(`[WebSocket] Connection closed after ${connectionDuration}ms. Code: ${event.code}, Reason: ${event.reason}`);
         this.isConnected = false;
         this.stopHealthCheck();
         
@@ -151,20 +156,20 @@ class WebSocketService {
         // Attempt to reconnect
         if (this.reconnectAttempts < this.maxReconnectAttempts) {
           const delay = Math.min(1000 * Math.pow(1.5, this.reconnectAttempts), 30000);
-          console.log(`Attempting to reconnect in ${delay}ms (attempt ${this.reconnectAttempts + 1}/${this.maxReconnectAttempts})`);
+          console.log(`[WebSocket] Attempting to reconnect in ${delay}ms (attempt ${this.reconnectAttempts + 1}/${this.maxReconnectAttempts})`);
           
           this.reconnectTimer = setTimeout(() => {
             this.reconnectAttempts++;
             this.connect(this.currentUrl);
           }, delay);
         } else {
-          console.error('Maximum reconnection attempts reached.');
+          console.error('[WebSocket] Maximum reconnection attempts reached.');
           this.notifyError(new Error('Failed to connect to WebSocket server after multiple attempts'));
         }
       };
       
       this.ws.onerror = (error) => {
-        console.error('WebSocket error:', error);
+        console.error('[WebSocket] WebSocket error:', error);
         
         // Try to provide more detailed error information
         let errorMessage = 'WebSocket connection error';
@@ -173,21 +178,33 @@ class WebSocketService {
         if (!this.isConnected) {
           errorMessage = 'WebSocket connection failed - Check if the server is running';
           
+          // Network diagnosis information
+          const networkDiagnosis = this.getNetworkDiagnosisInfo();
+          console.log('[WebSocket] Network diagnosis:', networkDiagnosis);
+          
           // Check if the error might be due to server not running
           if (serverUrl.includes('localhost') || serverUrl.includes('127.0.0.1')) {
             errorMessage += ' on ' + serverUrl;
           } else {
             errorMessage += ' (server might be down or unreachable)';
           }
+          
+          // Add troubleshooting information
+          console.error('[WebSocket] Troubleshooting steps:');
+          console.error('1. Check if WebSocket server is running (docker ps)');
+          console.error('2. Check server logs (docker logs hydroponics-websocket)');
+          console.error('3. Verify port 8081 is accessible (netstat -tuln | grep 8081)');
+          console.error('4. Check for firewalls blocking the connection');
+          console.error('5. Ensure the server URL is correct:', serverUrl);
         }
         
         this.notifyError(new Error(errorMessage));
         
         // Try fallback from secure to non-secure WebSocket if needed
         if (serverUrl.startsWith('wss:') && this.reconnectAttempts === 0) {
-          console.log('Secure WebSocket connection failed, trying fallback to non-secure...');
+          console.log('[WebSocket] Secure WebSocket connection failed, trying fallback to non-secure...');
           const fallbackUrl = serverUrl.replace('wss:', 'ws:');
-          console.log(`Fallback URL: ${fallbackUrl}`);
+          console.log(`[WebSocket] Fallback URL: ${fallbackUrl}`);
           setTimeout(() => this.connect(fallbackUrl), 1000);
         }
       };
@@ -197,9 +214,9 @@ class WebSocketService {
         if (this.isConnected && this.ws && this.ws.readyState === WebSocket.OPEN) {
           try {
             this.ws.send('ping');
-            if (this.debugMode) console.log('Sent ping message');
+            console.log('[WebSocket] Sent ping message');
           } catch (error) {
-            console.error('Error sending ping:', error);
+            console.error('[WebSocket] Error sending ping:', error);
             clearInterval(pingInterval);
           }
         } else {
@@ -209,9 +226,24 @@ class WebSocketService {
       
       return true;
     } catch (error) {
-      console.error('Error creating WebSocket:', error);
+      console.error('[WebSocket] Error creating WebSocket:', error);
       this.notifyError(new Error('Failed to create WebSocket connection - Is the server running?'));
       return false;
+    }
+  }
+  
+  private getNetworkDiagnosisInfo(): string {
+    try {
+      const info = [];
+      info.push(`URL: ${this.currentUrl}`);
+      info.push(`Window location: ${window.location.href}`);
+      info.push(`Protocol: ${window.location.protocol}`);
+      info.push(`Hostname: ${window.location.hostname}`);
+      info.push(`Port: ${window.location.port}`);
+      info.push(`Navigator online: ${navigator.onLine}`);
+      return info.join(', ');
+    } catch (error) {
+      return `Error getting network info: ${error}`;
     }
   }
   
@@ -228,21 +260,21 @@ class WebSocketService {
   }
   
   private getDefaultWebSocketUrl(): string {
-    console.log("Getting default WebSocket URL");
+    console.log("[WebSocket] Getting default WebSocket URL");
     
     // Use window location to determine if we're on Raspberry Pi
     const hostname = window.location.hostname;
-    console.log(`Current hostname: ${hostname}`);
+    console.log(`[WebSocket] Current hostname: ${hostname}`);
     
     // Get the port from the current location to handle development setups
     const protocol = window.location.protocol === 'https:' ? 'wss:' : 'ws:';
-    console.log(`Using protocol: ${protocol}`);
+    console.log(`[WebSocket] Using protocol: ${protocol}`);
     
     // Check if we're accessing from Raspberry Pi itself
     if (this.isRaspberryPi()) {
       // When running on the Pi itself, connect to the websocket server on 8081
       const url = `${protocol}//${hostname}:8081`;
-      console.log(`Using Raspberry Pi URL: ${url}`);
+      console.log(`[WebSocket] Using Raspberry Pi URL: ${url}`);
       return url;
     }
     
@@ -251,13 +283,13 @@ class WebSocketService {
       // For remote access, use a relative WebSocket URL
       // This will connect to the same host but on the WebSocket port
       const url = `${protocol}//${hostname}:8081`;
-      console.log(`Using direct remote URL: ${url}`);
+      console.log(`[WebSocket] Using direct remote URL: ${url}`);
       return url;
     }
     
     // For development on localhost
     const url = `${protocol}//${hostname}:8081`;
-    console.log(`Using development URL: ${url}`);
+    console.log(`[WebSocket] Using development URL: ${url}`);
     return url;
   }
   
@@ -270,7 +302,7 @@ class WebSocketService {
     const isRpi = hostname === 'raspberrypi.local' || 
            hostname.startsWith('192.168.') ||
            hostname === 'localhost';
-    console.log(`Checking if Raspberry Pi: ${hostname} -> ${isRpi}`);
+    console.log(`[WebSocket] Checking if Raspberry Pi: ${hostname} -> ${isRpi}`);
     return isRpi;
   }
   
@@ -283,7 +315,7 @@ class WebSocketService {
   }
   
   private notifyError(error: Error) {
-    console.error('WebSocket error notification:', error.message);
+    console.error('[WebSocket] Error notification:', error.message);
     this.errorCallbacks.forEach(callback => callback(error));
     
     const event = new CustomEvent('websocket-error', { 
@@ -293,6 +325,7 @@ class WebSocketService {
   }
   
   disconnect() {
+    console.log('[WebSocket] Disconnecting WebSocket');
     this.stopHealthCheck();
     
     if (this.reconnectTimer) {
@@ -317,11 +350,11 @@ class WebSocketService {
     this.healthCheckInterval = setInterval(() => {
       const now = Date.now();
       if (now - this.lastMessageTime > 20000) {
-        console.warn('No data received from WebSocket in the last 20 seconds');
+        console.warn('[WebSocket] No data received from WebSocket in the last 20 seconds');
         this.notifyError(new Error('No data received from server - Arduino may not be connected or sending data'));
         
         if (this.isConnected && this.ws && this.ws.readyState === WebSocket.OPEN) {
-          console.log('Forcing WebSocket reconnection due to stale connection');
+          console.log('[WebSocket] Forcing WebSocket reconnection due to stale connection');
           this.ws.close(1000, "Health check failed - no data received");
         }
       }
