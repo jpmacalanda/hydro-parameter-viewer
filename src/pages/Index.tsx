@@ -27,8 +27,7 @@ const Index = () => {
     showStatistics: true,
     showThresholds: true,
     showSystemLogs: true,
-    showSerialMonitor: true,
-    useWebSocket: true
+    showSerialMonitor: true
   });
   
   const handleSensorData = (data: SerialData) => {

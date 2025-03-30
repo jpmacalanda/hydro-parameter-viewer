@@ -6,7 +6,6 @@ import serialService from '@/services/SerialService';
 import { SerialData } from '@/services/types/serial.types';
 import SensorGrid from './dashboard/SensorGrid';
 import DashboardHeader from './dashboard/DashboardHeader';
-import ConnectionControl from './ConnectionControl';
 import DashboardTabs from './dashboard/DashboardTabs';
 import { NotificationsProvider, useNotifications } from '@/context/NotificationsContext';
 import ThresholdChecker from './dashboard/ThresholdChecker';
@@ -18,7 +17,6 @@ interface DashboardProps {
     showThresholds: boolean;
     showSystemLogs: boolean;
     showSerialMonitor: boolean;
-    useWebSocket: boolean;
   };
   sensorData: SerialData;
   dataHistory: SerialData[];
@@ -36,7 +34,6 @@ interface DashboardProps {
     showThresholds: boolean;
     showSystemLogs: boolean;
     showSerialMonitor: boolean;
-    useWebSocket: boolean;
   }>>;
   onSensorData: (data: SerialData) => void;
 }
