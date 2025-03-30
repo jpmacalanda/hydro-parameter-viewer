@@ -6,7 +6,7 @@ import { Droplet } from "lucide-react";
 import TimeGraph from './TimeGraph';
 
 interface PHDisplayProps {
-  value: number | null;
+  value: number;
   history?: Array<{time: string; value: number}>;
   showGraph?: boolean;
   optimalMin?: number;
@@ -25,11 +25,11 @@ const PHDisplay: React.FC<PHDisplayProps> = ({
   const phMax = 14;
   
   // Calculate progress percentage (0-100)
-  const progressPercent = value === null || value === 0 ? 0 : (value / phMax) * 100;
+  const progressPercent = value === 0 ? 0 : (value / phMax) * 100;
   
   // Determine status based on pH value
   const getStatus = () => {
-    if (value === null || value === 0) return "unavailable";
+    if (value === 0) return "unavailable";
     if (value < optimalMin) return "low";
     if (value > optimalMax) return "high";
     return "normal";
@@ -78,9 +78,7 @@ const PHDisplay: React.FC<PHDisplayProps> = ({
       </CardHeader>
       <CardContent>
         <div className="flex justify-between items-center mb-2">
-          <span className="text-3xl font-bold">
-            {value === null || value === 0 ? "-" : value.toFixed(1)}
-          </span>
+          <span className="text-3xl font-bold">{value === 0 ? "-" : value.toFixed(1)}</span>
           <span className={`px-2 py-1 rounded-full text-xs font-medium text-white ${getBgColor()}`}>
             {statusText()}
           </span>

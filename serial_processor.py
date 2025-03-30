@@ -92,8 +92,7 @@ async def read_serial():
     last_message_time = time.time()
     no_data_warning_sent = False
     reconnect_attempts = 0
-    max_reconnect_attempts = 10  # Increased from 5 to 10
-    reconnect_delay = 5  # Seconds between reconnect attempts
+    max_reconnect_attempts = 5
 
     while True:
         current_time = time.time()
@@ -102,37 +101,24 @@ async def read_serial():
         if not ser or not ser.is_open:
             if reconnect_attempts < max_reconnect_attempts:
                 logger.warning(f"Serial connection lost. Attempting to reconnect ({reconnect_attempts+1}/{max_reconnect_attempts})...")
-                # Close the port if it's still open but having issues
-                try:
-                    if ser and ser.is_open:
-                        ser.close()
-                        logger.info("Closed problematic serial connection before reconnecting")
-                except Exception as e:
-                    logger.error(f"Error closing serial port: {e}")
-                
                 ser = initialize_serial()
                 reconnect_attempts += 1
                 if not ser:
-                    logger.error(f"Failed to reconnect to serial port (attempt {reconnect_attempts}/{max_reconnect_attempts})")
-                    logger.info(f"Will retry in {reconnect_delay} seconds")
-                    await asyncio.sleep(reconnect_delay)  # Wait before next attempt
+                    logger.error("Failed to reconnect to serial port")
+                    await asyncio.sleep(5)  # Wait before next attempt
                     continue
                 else:
                     logger.info("Successfully reconnected to serial port")
                     reconnect_attempts = 0
-                    last_message_time = current_time  # Reset timer
-                    no_data_warning_sent = False
             else:
-                logger.error(f"Maximum reconnection attempts ({max_reconnect_attempts}) reached. Unable to connect to Arduino.")
-                logger.error("Waiting for 60 seconds before trying again...")
+                logger.error("Maximum reconnection attempts reached. Unable to connect to Arduino.")
                 # Continuously try to reconnect after max attempts reached, but less frequently
-                await asyncio.sleep(60)  # Wait a full minute
-                # Reset attempt counter to try again
-                reconnect_attempts = 0
                 ser = initialize_serial()
                 if ser:
                     logger.info("Serial connection re-established after extended attempts")
+                    reconnect_attempts = 0
                 else:
+                    await asyncio.sleep(60)  # Wait a full minute before trying again
                     continue
         
         try:
@@ -192,24 +178,11 @@ async def read_serial():
                     else:
                         logger.warning(f"Incomplete or invalid data: {parsed_data}")
                         logger.warning(f"Expected format: pH:6.20,temp:23.20,water:medium,tds:652")
-            elif (current_time - last_message_time) > 15 and not no_data_warning_sent:
-                # No data from Arduino for 15 seconds
-                logger.warning("No data received from Arduino in 15 seconds!")
+            elif (current_time - last_message_time) > 10 and not no_data_warning_sent:
+                # No data from Arduino for 10 seconds
+                logger.warning("No data received from Arduino in 10 seconds!")
                 logger.warning("Check if Arduino is properly connected and sending data")
                 no_data_warning_sent = True
-                
-                # If no data for too long, try reconnecting
-                if (current_time - last_message_time) > 30:  # After 30 seconds of no data
-                    logger.error("No data for 30+ seconds, attempting to reset connection")
-                    try:
-                        if ser and ser.is_open:
-                            ser.close()
-                            logger.info("Closed inactive serial connection")
-                    except Exception as e:
-                        logger.error(f"Error closing inactive serial connection: {e}")
-                    
-                    ser = None  # Force reconnection on next loop
-                    reconnect_attempts = 0  # Reset counter for a fresh start
                 
         except serial.SerialException as e:
             logger.error(f"Serial port error: {e}")
@@ -217,26 +190,11 @@ async def read_serial():
             try:
                 if ser and ser.is_open:
                     ser.close()
-            except Exception as close_error:
-                logger.error(f"Error closing serial port after error: {close_error}")
-            
+            except:
+                pass
             ser = None
-            # Don't increment reconnect_attempts here, it will be handled in the reconnection logic
-            await asyncio.sleep(1)  # Brief pause before reconnection attempt
-        except UnicodeDecodeError as e:
-            logger.error(f"Unicode decode error: {e}. This might indicate corrupt data or wrong baud rate.")
-            buffer = ""  # Clear buffer to avoid cascading errors
         except Exception as e:
             logger.error(f"Error reading/processing serial data: {e}")
-            # If too many errors occur, consider reconnecting
-            if (current_time - last_message_time) > 20:  # If also no successful reads for 20+ seconds
-                logger.error("Too many errors and no successful data, attempting to reset connection")
-                try:
-                    if ser and ser.is_open:
-                        ser.close()
-                except Exception:
-                    pass
-                ser = None  # Force reconnection on next loop
                 
         await asyncio.sleep(0.1)  # Check more frequently
 

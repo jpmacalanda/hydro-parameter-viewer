@@ -1,3 +1,4 @@
+
 import { SerialData } from './types/serial.types';
 import { toast } from "sonner";
 
@@ -64,7 +65,9 @@ class LogParserService {
       
       if (!logs || logs.trim() === "") {
         console.warn("[DOCKER-LOG][LogParserService] Received empty logs from server");
-        this.dispatchError('No data available in logs');
+        toast.error('No data available in logs', {
+          description: 'Check if Arduino is connected and sending data'
+        });
         return;
       }
       
@@ -86,33 +89,16 @@ class LogParserService {
         this.notifyCallbacks(latestData);
       } else {
         console.warn("[DOCKER-LOG][LogParserService] No valid sensor data found in logs");
-        this.dispatchError('No valid sensor data found');
+        toast.error('No valid sensor data found', {
+          description: 'Check if Arduino is sending data in the correct format'
+        });
       }
     } catch (error) {
       console.error('[DOCKER-LOG][LogParserService] Error fetching logs:', error);
-      this.dispatchError(error instanceof Error ? error.message : 'Failed to fetch sensor data logs');
+      toast.error('Failed to fetch sensor data logs', {
+        description: 'Check if the logs server is running and Arduino is connected'
+      });
     }
-  }
-
-  /**
-   * Dispatch an error event that SerialService can listen for
-   */
-  private dispatchError(message: string): void {
-    console.error(`[DOCKER-LOG][LogParserService] Error: ${message}`);
-    
-    // Display toast
-    toast.error(message, {
-      description: 'Check if the logs server is running and Arduino is connected'
-    });
-    
-    // Dispatch event for other components to listen for
-    const errorEvent = new CustomEvent('parser-error', {
-      detail: {
-        message: message,
-        time: new Date().toISOString()
-      }
-    });
-    document.dispatchEvent(errorEvent);
   }
 
   /**

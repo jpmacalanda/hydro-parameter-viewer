@@ -14,7 +14,7 @@ services:
       - hydroponics-network
     depends_on:
       - serial-monitor
-    restart: always
+    restart: unless-stopped
     healthcheck:
       test: ["CMD", "curl", "-k", "https://localhost/health"]
       interval: 30s
@@ -41,7 +41,7 @@ services:
       - RETRY_DELAY=3
     volumes:
       - ./logs:/app/logs
-    restart: always
+    restart: unless-stopped
     networks:
       - hydroponics-network
     # Add privilege setting for serial access
@@ -49,6 +49,28 @@ services:
     # Define a healthcheck
     healthcheck:
       test: ["CMD", "grep", "-q", "Serial Monitor", "/app/logs/serial_monitor.log"]
+      interval: 30s
+      timeout: 10s
+      retries: 3
+      start_period: 20s
+
+  logs-server:
+    build:
+      context: .
+      dockerfile: Dockerfile.logs
+    container_name: hydroponics-logs-server
+    image: hydro-parameter-viewer-logs-server
+    ports:
+      - "8081:8081"
+    volumes:
+      - ./logs:/app/logs
+    restart: unless-stopped
+    networks:
+      - hydroponics-network
+    depends_on:
+      - serial-monitor
+    healthcheck:
+      test: ["CMD", "curl", "-f", "http://localhost:8081/health"]
       interval: 30s
       timeout: 10s
       retries: 3

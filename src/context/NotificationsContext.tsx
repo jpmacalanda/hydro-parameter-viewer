@@ -1,3 +1,4 @@
+
 import React, { createContext, useContext, useState, useEffect } from 'react';
 import { NotificationType } from '@/components/NotificationsPanel';
 
@@ -8,7 +9,6 @@ export interface Notification {
   message: string;
   timestamp: Date;
   read: boolean;
-  count?: number; // Counter for bundled notifications
 }
 
 interface NotificationsContextType {
@@ -38,45 +38,22 @@ export const NotificationsProvider: React.FC<{ children: React.ReactNode }> = ({
       title,
       message,
       timestamp: new Date(),
-      read: false,
-      count: 1
+      read: false
     };
 
     setNotifications(prev => {
-      const twoMinutesAgo = new Date(Date.now() - 2 * 60 * 1000);
-      
-      // Look for similar existing notification
-      const similarIndex = prev.findIndex(
+      const fiveMinutesAgo = new Date(Date.now() - 5 * 60 * 1000);
+      const similarExists = prev.some(
         notif => 
           notif.title === title && 
-          (notif.type === type) &&
-          notif.timestamp > twoMinutesAgo
+          notif.message === message && 
+          notif.timestamp > fiveMinutesAgo
       );
 
-      if (similarIndex >= 0) {
-        // Update the existing notification
-        const updatedNotifications = [...prev];
-        const existingNotification = updatedNotifications[similarIndex];
-        
-        // Increment count and update timestamp
-        updatedNotifications[similarIndex] = {
-          ...existingNotification,
-          count: (existingNotification.count || 1) + 1,
-          timestamp: new Date(), // Update timestamp to keep it current
-          read: false,           // Mark as unread again
-          // Keep message from the original notification or append new one if different
-          message: existingNotification.message === message 
-            ? message 
-            : `${message} (${(existingNotification.count || 1) + 1} occurrences)`
-        };
-        
-        // Move to top of list
-        const updated = updatedNotifications.splice(similarIndex, 1)[0];
-        return [updated, ...updatedNotifications];
+      if (!similarExists) {
+        return [newNotification, ...prev];
       }
-      
-      // No similar notification found, add as new
-      return [newNotification, ...prev];
+      return prev;
     });
   };
 

@@ -4,9 +4,17 @@ import { Bell, CheckCircle, AlertTriangle, Info, Wifi, ShieldAlert } from 'lucid
 import { Badge } from "@/components/ui/badge";
 import { Alert, AlertTitle, AlertDescription } from "@/components/ui/alert";
 import { SerialData } from '@/services/types/serial.types';
-import { Notification } from '@/context/NotificationsContext';
 
 export type NotificationType = 'info' | 'warning' | 'error' | 'success';
+
+export interface Notification {
+  id: string;
+  type: NotificationType;
+  title: string;
+  message: string;
+  timestamp: Date;
+  read: boolean;
+}
 
 interface NotificationsPanelProps {
   notifications: Notification[];
@@ -29,9 +37,6 @@ const NotificationsPanel: React.FC<NotificationsPanelProps> = ({
     }
     if (title.includes('Web Serial API')) {
       return <ShieldAlert className="h-5 w-5 text-yellow-500" />;
-    }
-    if (title.includes('Arduino')) {
-      return <AlertTriangle className="h-5 w-5 text-orange-500" />;
     }
     
     // Fall back to type-based icons
@@ -109,14 +114,7 @@ const NotificationsPanel: React.FC<NotificationsPanelProps> = ({
                 {getNotificationIcon(notification.type, notification.title)}
                 <div className="ml-3 flex-1">
                   <div className="flex justify-between items-start">
-                    <div className="flex items-center gap-2">
-                      <AlertTitle>{notification.title}</AlertTitle>
-                      {notification.count && notification.count > 1 && (
-                        <Badge variant="outline" className="text-xs bg-gray-100">
-                          {notification.count}×
-                        </Badge>
-                      )}
-                    </div>
+                    <AlertTitle>{notification.title}</AlertTitle>
                     {!notification.read && (
                       <Badge variant="secondary" className="ml-2 text-xs">New</Badge>
                     )}
@@ -148,3 +146,4 @@ const NotificationsPanel: React.FC<NotificationsPanelProps> = ({
 };
 
 export default NotificationsPanel;
+

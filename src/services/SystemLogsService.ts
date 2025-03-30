@@ -1,3 +1,4 @@
+
 import { toast } from "sonner";
 
 type LogCallback = (logs: string) => void;
@@ -8,10 +9,6 @@ class SystemLogsService {
   private pollingInterval: ReturnType<typeof setInterval> | null = null;
   private containerType: 'webapp' | 'websocket' = 'websocket';
   private lastLogLength: number = 0;
-  private mockLogs: { [key: string]: string } = {
-    webapp: "2025-03-30T18:12:34 [info] Starting NGINX container...\n2025-03-30T18:12:35 [info] Using existing certificates.\n2025-03-30T18:12:36 [info] Listening on port 80 and 443\n2025-03-30T18:12:37 [info] Ready to serve requests\n",
-    websocket: "2025-03-30T18:12:30 [info] Starting Serial Monitor...\n2025-03-30T18:12:31 [info] Connecting to /dev/ttyUSB0 at 9600 baud\n2025-03-30T18:12:32 [info] Serial connection established\n2025-03-30T18:12:33 [info] Waiting for data...\n"
-  };
 
   constructor() {
     // Default to websocket container logs
@@ -53,22 +50,27 @@ class SystemLogsService {
    */
   private async fetchLogs(): Promise<void> {
     try {
-      // Use mock logs since the logs server doesn't exist
-      this.notifyCallbacks(this.mockLogs[this.containerType]);
+      // Use real logs from the logs server
+      const endpoint = this.containerType === 'websocket' 
+        ? '/logs' 
+        : '/api/logs';
       
-      // Append some random data to simulate live logs
-      const timestamp = new Date().toISOString().replace('Z', '');
-      const randomLog = `${timestamp} [info] Random log entry ${Math.floor(Math.random() * 1000)}\n`;
-      this.mockLogs[this.containerType] += randomLog;
+      console.log(`Fetching logs from ${endpoint}`);
+      const response = await fetch(endpoint);
       
-      // Keep log size manageable
-      if (this.mockLogs[this.containerType].length > 5000) {
-        this.mockLogs[this.containerType] = this.mockLogs[this.containerType].substring(
-          this.mockLogs[this.containerType].length - 5000
-        );
+      if (!response.ok) {
+        throw new Error(`HTTP error: ${response.status}`);
+      }
+      
+      const logs = await response.text();
+      
+      if (logs && logs !== "") {
+        this.notifyCallbacks(logs);
+      } else {
+        console.warn("Received empty logs from server");
       }
     } catch (error) {
-      console.error('Error handling logs:', error);
+      console.error('Error fetching logs:', error);
       toast.error('Failed to fetch system logs', {
         description: 'Could not retrieve container logs'
       });

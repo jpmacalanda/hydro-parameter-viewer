@@ -38,11 +38,6 @@ const MonitoringPanel: React.FC<MonitoringPanelProps> = ({
   setShowGraphs,
   thresholds
 }) => {
-  // Check if values are valid
-  const hasValidPh = params.ph !== 0 && params.ph !== undefined;
-  const hasValidTemp = params.temperature !== 0 && params.temperature !== undefined;
-  const hasValidTds = params.tds !== 0 && params.tds !== undefined;
-  
   return (
     <div className="space-y-4">
       <div className="flex items-center space-x-2 mb-4">
@@ -56,22 +51,22 @@ const MonitoringPanel: React.FC<MonitoringPanelProps> = ({
       
       <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-2 gap-6">
         <PHDisplay 
-          value={hasValidPh ? params.ph : null} 
+          value={params.ph} 
           history={phHistory} 
           showGraph={showGraphs} 
           optimalMin={thresholds.phMin}
           optimalMax={thresholds.phMax}
         />
         <TemperatureDisplay 
-          value={hasValidTemp ? params.temperature : null} 
+          value={params.temperature} 
           history={tempHistory} 
           showGraph={showGraphs} 
           optimalMin={thresholds.temperatureMin}
           optimalMax={thresholds.temperatureMax}
         />
-        <WaterLevelDisplay level={params.waterLevel || null} />
+        <WaterLevelDisplay level={params.waterLevel} />
         <TDSDisplay 
-          value={hasValidTds ? params.tds : null} 
+          value={params.tds} 
           history={tdsHistory} 
           showGraph={showGraphs} 
           optimalMin={thresholds.tdsMin}

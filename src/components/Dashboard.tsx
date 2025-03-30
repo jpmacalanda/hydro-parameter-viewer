@@ -1,5 +1,5 @@
 
-import React, { useEffect, useState, useCallback, useRef } from 'react';
+import React, { useEffect, useState } from 'react';
 import MonitoringPanel from './dashboard/MonitoringPanel';
 import SystemInfoPanel from './dashboard/SystemInfoPanel';
 import serialService from '@/services/SerialService';
@@ -10,7 +10,6 @@ import DashboardTabs from './dashboard/DashboardTabs';
 import { NotificationsProvider, useNotifications } from '@/context/NotificationsContext';
 import ThresholdChecker from './dashboard/ThresholdChecker';
 import ConnectionDetection from './dashboard/ConnectionDetection';
-import { toast } from "sonner";
 
 interface DashboardProps {
   features: {
@@ -59,106 +58,49 @@ const DashboardContent: React.FC<DashboardProps> = ({
   const [lastDataReceived, setLastDataReceived] = useState<Date | null>(null);
   const [isRemoteAccess, setIsRemoteAccess] = useState(false);
   const { addNotification } = useNotifications();
-  
-  // New state for data resolution and recording
-  const [dataResolution, setDataResolution] = useState<number>(60000); // Default: every minute
-  const lastRecordTime = useRef<number>(0);
-  
-  // New state for calibration
-  const [calibration, setCalibration] = useState({
-    phOffset: 0,
-    tdsCalibrationFactor: 1.0
-  });
-  
-  // Apply calibration to sensor data
-  const getAdjustedSensorData = (data: SerialData): SerialData => {
-    if (!data) return data;
-    
-    return {
-      ...data,
-      ph: data.ph !== 0 ? data.ph + calibration.phOffset : 0,
-      tds: data.tds !== 0 ? Math.round(data.tds * calibration.tdsCalibrationFactor) : 0
-    };
-  };
-  
-  // Handle clearing data history
-  const handleClearData = useCallback(() => {
-    setPhHistory([]);
-    setTempHistory([]);
-    setTdsHistory([]);
-    console.log("Dashboard: Cleared historical data");
-    
-    // Also clear parent's data history
-    onSensorData({...sensorData});
-  }, [sensorData, onSensorData]);
 
   // Force update data history when sensor data changes
   useEffect(() => {
     console.log("Dashboard: Sensor data updated:", sensorData);
     
     if (sensorData && (sensorData.ph !== 0 || sensorData.temperature !== 0 || sensorData.tds !== 0)) {
-      const calibratedData = getAdjustedSensorData(sensorData);
       setLastUpdate(new Date());
       setLastDataReceived(new Date());
       
-      // Check if it's time to record a data point based on resolution
-      const now = Date.now();
-      if (now - lastRecordTime.current >= dataResolution) {
-        lastRecordTime.current = now;
-        
-        // Update histories with new data point
-        const currentTime = new Date().toLocaleTimeString([], { 
-          hour: '2-digit', 
-          minute: '2-digit',
-          second: '2-digit'
+      // Update histories with new data point
+      const currentHour = new Date().getHours();
+      const currentMinute = new Date().getMinutes();
+      const timeString = `${currentHour}:${currentMinute < 10 ? '0' : ''}${currentMinute}`;
+      
+      // Only update histories with valid data
+      if (sensorData.ph !== 0) {
+        setPhHistory(prev => {
+          const newHistory = [...prev];
+          newHistory.push({ time: timeString, value: sensorData.ph });
+          if (newHistory.length > 24) newHistory.shift();
+          return newHistory;
         });
-        
-        // Only update histories with valid data
-        if (calibratedData.ph !== 0) {
-          setPhHistory(prev => {
-            const newHistory = [...prev];
-            newHistory.push({ time: currentTime, value: calibratedData.ph });
-            if (newHistory.length > 24) newHistory.shift();
-            return newHistory;
-          });
-        }
-        
-        if (calibratedData.temperature !== 0) {
-          setTempHistory(prev => {
-            const newHistory = [...prev];
-            newHistory.push({ time: currentTime, value: calibratedData.temperature });
-            if (newHistory.length > 24) newHistory.shift();
-            return newHistory;
-          });
-        }
-        
-        if (calibratedData.tds !== 0) {
-          setTdsHistory(prev => {
-            const newHistory = [...prev];
-            newHistory.push({ time: currentTime, value: calibratedData.tds });
-            if (newHistory.length > 24) newHistory.shift();
-            return newHistory;
-          });
-        }
-        
-        console.log("Dashboard: Recorded data point with resolution:", dataResolution);
-      } else {
-        console.log("Dashboard: Skipping data recording, waiting for next interval");
+      }
+      
+      if (sensorData.temperature !== 0) {
+        setTempHistory(prev => {
+          const newHistory = [...prev];
+          newHistory.push({ time: timeString, value: sensorData.temperature });
+          if (newHistory.length > 24) newHistory.shift();
+          return newHistory;
+        });
+      }
+      
+      if (sensorData.tds !== 0) {
+        setTdsHistory(prev => {
+          const newHistory = [...prev];
+          newHistory.push({ time: timeString, value: sensorData.tds });
+          if (newHistory.length > 24) newHistory.shift();
+          return newHistory;
+        });
       }
     }
-  }, [sensorData, dataResolution]);
-
-  // Handle calibration changes
-  useEffect(() => {
-    console.log("Dashboard: Calibration values updated:", calibration);
-  }, [calibration]);
-  
-  // Handle data resolution changes
-  useEffect(() => {
-    console.log("Dashboard: Data resolution changed to", dataResolution, "ms");
-    // Reset the timer when resolution changes to avoid long waits
-    lastRecordTime.current = 0;
-  }, [dataResolution]);
+  }, [sensorData]);
 
   useEffect(() => {
     console.log("Dashboard: Setting up serial data listeners");
@@ -168,10 +110,9 @@ const DashboardContent: React.FC<DashboardProps> = ({
       setLastUpdate(new Date());
       setLastDataReceived(new Date());
       
-      // Apply calibration and pass the data up to the parent
-      const calibratedData = getAdjustedSensorData(data);
-      console.log("Dashboard: Forwarding calibrated data to parent component:", calibratedData);
-      onSensorData(calibratedData);
+      // Pass the received data up to the parent
+      console.log("Dashboard: Forwarding data to parent component");
+      onSensorData(data);
     });
 
     serialService.onError((error) => {
@@ -194,14 +135,9 @@ const DashboardContent: React.FC<DashboardProps> = ({
     };
   }, [addNotification, onSensorData]);
 
-  // Effect for displaying toast notification when calibration changes
   useEffect(() => {
-    if (calibration.phOffset !== 0 || calibration.tdsCalibrationFactor !== 1.0) {
-      toast.info("Calibration Active", {
-        description: `pH Offset: ${calibration.phOffset.toFixed(2)}, TDS Factor: ${calibration.tdsCalibrationFactor.toFixed(2)}`
-      });
-    }
-  }, [calibration]);
+    console.log("Dashboard: Data history updated, length:", dataHistory.length);
+  }, [dataHistory]);
 
   return (
     <div className="container mx-auto px-4 py-8">
@@ -212,7 +148,7 @@ const DashboardContent: React.FC<DashboardProps> = ({
         {/* Display either SensorGrid or MonitoringPanel based on showGraphs */}
         {showGraphs ? (
           <MonitoringPanel 
-            params={getAdjustedSensorData(sensorData)}
+            params={sensorData}
             phHistory={phHistory}
             tempHistory={tempHistory}
             tdsHistory={tdsHistory}
@@ -238,7 +174,7 @@ const DashboardContent: React.FC<DashboardProps> = ({
                 <div className="ml-3 text-gray-700 font-medium">Show Historical Graphs</div>
               </label>
             </div>
-            <SensorGrid sensorData={getAdjustedSensorData(sensorData)} thresholds={thresholds} />
+            <SensorGrid sensorData={sensorData} thresholds={thresholds} />
           </div>
         )}
         
@@ -246,26 +182,19 @@ const DashboardContent: React.FC<DashboardProps> = ({
           connected={connected} 
           lastUpdate={lastUpdate}
           thresholds={thresholds}
-          calibration={calibration}
-          dataResolution={dataResolution}
         />
         
         <DashboardTabs 
           features={features}
-          sensorData={getAdjustedSensorData(sensorData)}
+          sensorData={sensorData}
           dataHistory={dataHistory}
           thresholds={thresholds}
-          dataResolution={dataResolution}
-          calibration={calibration}
           setThresholds={setThresholds}
-          setDataResolution={setDataResolution}
-          setCalibration={setCalibration}
           setFeatures={setFeatures}
-          onClearData={handleClearData}
         />
 
         {/* Non-visual components for side effects */}
-        <ThresholdChecker sensorData={getAdjustedSensorData(sensorData)} thresholds={thresholds} />
+        <ThresholdChecker sensorData={sensorData} thresholds={thresholds} />
         <ConnectionDetection 
           connected={connected} 
           lastDataReceived={lastDataReceived} 

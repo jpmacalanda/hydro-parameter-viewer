@@ -6,39 +6,6 @@
 - Docker installed
 - Docker Compose installed
 
-## Architecture Diagram
-
-```
-                      ┌─────────────┐
-                      │             │
-                      │  Docker     │
-                      │  Host       │
-                      │ (Raspberry  │
-                      │    Pi)      │
-                      │             │
-                      └──────┬──────┘
-                             │
-                             │
-              ┌──────────────┴─────────────┐
-              │                            │
-              │                            │
-┌─────────────▼──────┐           ┌─────────▼──────────┐
-│                    │           │                    │
-│   webapp (nginx)   │◄─────────►│   serial-monitor   │
-│     container      │           │     container      │
-│                    │           │                    │
-└─────────┬──────────┘           └─────────┬──────────┘
-          │                                 │
-          │                                 │
-┌─────────▼──────────┐           ┌─────────▼──────────┐
-│                    │           │                    │
-│   Ports:           │           │   Connected to:    │
-│   - 80 (HTTP)      │           │   - Arduino via    │
-│   - 443 (HTTPS)    │           │     USB serial     │
-│                    │           │                    │
-└────────────────────┘           └────────────────────┘
-```
-
 ## SSL Certificates
 
 Before starting the containers, you can either:
