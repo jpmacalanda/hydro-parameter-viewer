@@ -44,7 +44,7 @@ services:
       - hydroponics-network
     restart: unless-stopped
     healthcheck:
-      test: ["CMD", "curl", "-k", "http://localhost:8081/health" , "||", "exit", "0"]
+      test: ["CMD", "curl", "-k", "http://localhost:8081/health"]
       interval: 30s
       timeout: 10s
       retries: 3

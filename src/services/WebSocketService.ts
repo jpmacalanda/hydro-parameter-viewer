@@ -29,6 +29,57 @@ class WebSocketService {
     }
     
     console.log(`Attempting WebSocket connection to: ${serverUrl}`);
+    
+    // First check if server is reachable with a simple fetch request
+    this.checkServerAvailability(serverUrl)
+      .then(available => {
+        if (available) {
+          this.initiateWebSocketConnection(serverUrl);
+        } else {
+          console.error(`[WebSocket] Server at ${serverUrl} is not available via HTTP check`);
+          this.notifyError(new Error(`Server at ${serverUrl.replace('ws', 'http')} is not reachable. Check if the WebSocket server is running.`));
+          
+          // Try fallback from secure to non-secure WebSocket if needed
+          if (serverUrl.startsWith('wss:')) {
+            console.log('[WebSocket] Secure WebSocket server not reachable, trying fallback to non-secure...');
+            const fallbackUrl = serverUrl.replace('wss:', 'ws:');
+            console.log(`[WebSocket] Fallback URL: ${fallbackUrl}`);
+            setTimeout(() => this.connect(fallbackUrl), 1000);
+          }
+        }
+      });
+    
+    return true;
+  }
+  
+  private async checkServerAvailability(wsUrl: string): Promise<boolean> {
+    try {
+      // Convert WebSocket URL to HTTP URL for health check
+      const httpUrl = wsUrl.replace('ws://', 'http://').replace('wss://', 'https://');
+      const healthUrl = `${httpUrl}/health`;
+      
+      console.log(`[WebSocket] Checking server availability at ${healthUrl}`);
+      
+      const response = await fetch(healthUrl, { 
+        method: 'GET',
+        mode: 'no-cors',
+        cache: 'no-cache',
+        headers: {
+          'Accept': 'text/plain',
+        },
+        // Very short timeout to not block the UI
+        signal: AbortSignal.timeout(3000)
+      });
+      
+      console.log(`[WebSocket] Server health check response:`, response);
+      return true;
+    } catch (error) {
+      console.warn(`[WebSocket] Server health check failed:`, error);
+      return false;
+    }
+  }
+  
+  private initiateWebSocketConnection(serverUrl: string) {
     this.currentUrl = serverUrl;
     this.connectionStartTime = Date.now();
     
@@ -199,14 +250,6 @@ class WebSocketService {
         }
         
         this.notifyError(new Error(errorMessage));
-        
-        // Try fallback from secure to non-secure WebSocket if needed
-        if (serverUrl.startsWith('wss:') && this.reconnectAttempts === 0) {
-          console.log('[WebSocket] Secure WebSocket connection failed, trying fallback to non-secure...');
-          const fallbackUrl = serverUrl.replace('wss:', 'ws:');
-          console.log(`[WebSocket] Fallback URL: ${fallbackUrl}`);
-          setTimeout(() => this.connect(fallbackUrl), 1000);
-        }
       };
       
       // Set up a ping interval

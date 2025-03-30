@@ -11,6 +11,7 @@ import random
 import socket
 import logging
 from datetime import datetime
+import http
 
 # Create logs directory if it doesn't exist
 os.makedirs("logs", exist_ok=True)
@@ -108,10 +109,43 @@ if MOCK_DATA:
 
 connected_clients = set()
 
-async def handle_client(websocket, path):
+async def http_handler(path, request_headers):
+    """Handle regular HTTP requests to provide a health endpoint and API access"""
+    if path == '/health' or path == '/':
+        logger.info(f"Received HTTP request to {path}")
+        
+        # Respond with a simple health check
+        body = "healthy\n"
+        
+        # Return a valid HTTP response
+        headers = [
+            ('Content-Type', 'text/plain'),
+            ('Access-Control-Allow-Origin', '*'),
+            ('Access-Control-Allow-Methods', 'GET, OPTIONS'),
+            ('Access-Control-Allow-Headers', 'Content-Type'),
+        ]
+        return http.HTTPStatus.OK, headers, body.encode()
+    
+    # For any other path, also return 200 OK with info
+    logger.info(f"Received HTTP request to unknown path: {path}")
+    body = (
+        "Hydroponics Monitoring System WebSocket Server\n"
+        "----------------------------------------\n"
+        "This is the WebSocket server for the Hydroponics Monitoring System.\n"
+        "For the web interface, please access the web application.\n"
+        "For WebSocket connections, connect to ws://hostname:8081\n"
+    )
+    headers = [
+        ('Content-Type', 'text/plain'),
+        ('Access-Control-Allow-Origin', '*'),
+    ]
+    return http.HTTPStatus.OK, headers, body.encode()
+
+async def websocket_handler(websocket, path):
+    """Handle WebSocket connections for data streaming"""
     client_address = websocket.remote_address if hasattr(websocket, 'remote_address') else 'Unknown'
     client_ip = client_address[0] if isinstance(client_address, tuple) and len(client_address) > 0 else 'Unknown IP'
-    logger.info(f"Client connected from {client_ip} to path: {path}")
+    logger.info(f"WebSocket client connected from {client_ip} to path: {path}")
     
     # Log request headers for debugging
     if hasattr(websocket, 'request_headers'):
@@ -119,12 +153,6 @@ async def handle_client(websocket, path):
     
     connected_clients.add(websocket)
     try:
-        # Handle health check requests
-        if path == "/health":
-            await websocket.send("healthy")
-            logger.info(f"Sent health check response to {client_ip}")
-            return
-            
         # Send initial success message
         try:
             initial_data = {
@@ -157,6 +185,7 @@ async def handle_client(websocket, path):
 
 async def generate_mock_data():
     """Generate mock sensor data when no Arduino is connected"""
+    # ... keep existing code (mock data generation logic)
     ph = 6.5
     temp = 23.0
     tds = 650
@@ -210,6 +239,7 @@ async def generate_mock_data():
         await asyncio.sleep(2)  # Send data every 2 seconds
 
 async def read_serial():
+    # ... keep existing code (serial reading logic)
     if MOCK_DATA:
         logger.info("Starting mock data generator")
         await generate_mock_data()
@@ -306,26 +336,6 @@ async def read_serial():
                 
         await asyncio.sleep(0.1)  # Check more frequently
 
-async def health_server(websocket, path):
-    """Simple health check endpoint"""
-    if path == "/health":
-        await websocket.send("healthy")
-        logger.debug(f"Sent health check response to path {path}")
-        await handle_client(websocket, path)  # Continue handling other messages
-    else:
-        # Forward to the main handler for normal WebSocket connections
-        await handle_client(websocket, path)
-
-def check_ssl_certificates():
-    if USE_SSL:
-        if not os.path.exists(SSL_CERT_PATH) or not os.path.exists(SSL_KEY_PATH):
-            logger.warning(f"WARNING: SSL certificates not found at {SSL_CERT_PATH} or {SSL_KEY_PATH}")
-            logger.warning("The container will continue starting, and certificates will be generated if needed.")
-            return False
-        logger.info(f"Found SSL certificates at: {SSL_CERT_PATH} and {SSL_KEY_PATH}")
-        return True
-    return True
-
 async def main():
     ssl_context = None
     
@@ -353,6 +363,9 @@ async def main():
         logger.info(f"WebSocket server will be available at:")
         logger.info(f"  Local: ws://localhost:{WS_PORT}")
         logger.info(f"  Network: ws://{local_ip}:{WS_PORT}")
+        logger.info(f"HTTP endpoints will be available at:")
+        logger.info(f"  Local: http://localhost:{WS_PORT}/health")
+        logger.info(f"  Network: http://{local_ip}:{WS_PORT}/health")
         if hostname == "raspberrypi":
             logger.info(f"  mDNS: ws://raspberrypi.local:{WS_PORT}")
             
@@ -371,14 +384,15 @@ async def main():
             logger.error(f"Error enumerating network interfaces: {e}")
             
         server = await websockets.serve(
-            health_server,  # Use the health-aware handler
+            websocket_handler,  # Use the WebSocket-specific handler
             "0.0.0.0", 
             WS_PORT, 
             ssl=ssl_context,
-            ping_interval=None  # Disable automatic ping as we're implementing our own
+            ping_interval=None,  # Disable automatic ping as we're implementing our own
+            process_request=http_handler  # Add HTTP request handler for regular requests
         )
         
-        logger.info(f"WebSocket server running on port {WS_PORT} {'with SSL' if ssl_context else 'without SSL'}")
+        logger.info(f"Server running on port {WS_PORT} {'with SSL' if ssl_context else 'without SSL'}")
         
         serial_task = asyncio.create_task(read_serial())
         await server.wait_closed()
