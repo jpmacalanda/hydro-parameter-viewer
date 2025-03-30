@@ -498,7 +498,21 @@ class SerialService {
   // Add a method to check which service is active
   async checkActiveService(): Promise<{ useWebSocket: boolean }> {
     try {
+      // For Lovable demo environment, use a mocked API response
+      if (window.location.host.includes('lovableproject.com')) {
+        console.log("Demo environment detected, mocking API response");
+        return { useWebSocket: this.usingWebSocket };
+      }
+      
       const response = await fetch('/api/status');
+      
+      // Check if response is JSON
+      const contentType = response.headers.get('content-type');
+      if (!contentType || !contentType.includes('application/json')) {
+        console.warn('API response is not JSON, using default WebSocket setting');
+        return { useWebSocket: true };
+      }
+      
       const data = await response.json();
       
       // Check for serialMonitorActive flag from server

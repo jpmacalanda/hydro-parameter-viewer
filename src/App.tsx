@@ -7,14 +7,16 @@ import Dashboard from './components/Dashboard';
 import ConnectionControl from './components/ConnectionControl';
 import { NotificationsProvider } from '@/context/NotificationsContext';
 import serialService from '@/services/SerialService';
+import logParserService from '@/services/LogParserService';
 import { SerialData } from '@/services/types/serial.types';
+import { toast } from 'sonner';
 
 function App() {
   const [isConnected, setIsConnected] = useState(false);
   const [sensorData, setSensorData] = useState<SerialData>({
     ph: 7.0,
     temperature: 25.0,
-    waterLevel: "medium" as "low" | "medium" | "high", // Type assertion to fix the TypeScript error
+    waterLevel: "medium",
     tds: 650
   });
   const [dataHistory, setDataHistory] = useState<SerialData[]>([]);
@@ -48,11 +50,39 @@ function App() {
         }));
       } catch (error) {
         console.error("Error checking active service:", error);
+        // Fallback to WebSocket if we can't determine
+        setFeatures(prev => ({
+          ...prev,
+          useWebSocket: true
+        }));
       }
     };
     
     checkActiveService();
   }, []);
+  
+  // Effect to start/stop log parsing based on connection and service selection
+  useEffect(() => {
+    // If connected and not using WebSocket (meaning using Serial Monitor)
+    if (isConnected && !features.useWebSocket) {
+      // Start log parsing
+      toast.info("Reading data from Serial Monitor logs", {
+        description: "WebSocket is disabled, parsing logs for data"
+      });
+      
+      logParserService.onData(handleSensorData);
+      logParserService.startPolling();
+      
+      return () => {
+        logParserService.stopPolling();
+      };
+    }
+    
+    return () => {
+      // Cleanup
+      logParserService.stopPolling();
+    };
+  }, [isConnected, features.useWebSocket]);
   
   const handleConnect = () => {
     setIsConnected(true);
@@ -74,8 +104,6 @@ function App() {
     <NotificationsProvider>
       <Router>
         <div className="container mx-auto p-4">
-          {/* Remove the header from here since it's already in Dashboard */}
-          
           <ConnectionControl 
             onConnect={handleConnect} 
             onDisconnect={handleDisconnect}
@@ -83,16 +111,17 @@ function App() {
             dataReceived={dataReceived}
           />
           
-          {/* Always render Dashboard, it will handle showing/hiding content based on connection state */}
-          <Dashboard 
-            features={features}
-            sensorData={sensorData} 
-            dataHistory={dataHistory}
-            thresholds={thresholds}
-            setThresholds={setThresholds}
-            setFeatures={setFeatures}
-            onSensorData={handleSensorData}
-          />
+          {isConnected && (
+            <Dashboard 
+              features={features}
+              sensorData={sensorData} 
+              dataHistory={dataHistory}
+              thresholds={thresholds}
+              setThresholds={setThresholds}
+              setFeatures={setFeatures}
+              onSensorData={handleSensorData}
+            />
+          )}
           
           <Toaster />
         </div>

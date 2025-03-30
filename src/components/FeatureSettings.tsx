@@ -1,194 +1,127 @@
-
-import React, { useState } from 'react';
-import { Card, CardContent, CardHeader, CardTitle, CardDescription } from "@/components/ui/card";
-import { Switch } from "@/components/ui/switch";
-import { Label } from "@/components/ui/label";
-import { Settings, BarChart, Gauge, FileText, Terminal, Wifi, WifiOff } from "lucide-react";
-import { Button } from "@/components/ui/button";
+import React from 'react';
+import { Switch } from "@/components/ui/switch"
+import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card"
+import { Label } from "@/components/ui/label"
+import { useDashboard } from '@/context/DashboardContext';
 import { toast } from "sonner";
 
-interface Features {
-  showStatistics: boolean;
-  showThresholds: boolean;
-  showSystemLogs: boolean;
-  showSerialMonitor: boolean;
-  useWebSocket: boolean;
-}
+const FeatureSettings: React.FC = () => {
+  const { features, setFeatures } = useDashboard();
 
-interface FeatureSettingsProps {
-  features: Features;
-  setFeatures: React.Dispatch<React.SetStateAction<Features>>;
-}
-
-const FeatureSettings: React.FC<FeatureSettingsProps> = ({ features, setFeatures }) => {
-  const [isToggling, setIsToggling] = useState(false);
-  
-  const handleFeatureToggle = (feature: keyof Features) => {
-    if (feature === 'useWebSocket') {
-      // Special handling for WebSocket toggle to restart the appropriate container
-      const newValue = !features.useWebSocket;
+  const handleServiceToggle = async (useWebSocket: boolean) => {
+    try {
+      // Prepare the query parameters
+      const params = new URLSearchParams({
+        websocket: useWebSocket ? 'on' : 'off',
+        monitor: useWebSocket ? 'off' : 'on'
+      });
       
-      // Show a loading toast
-      toast.loading(newValue ? "Activating WebSocket connection..." : "Activating Serial Monitor...");
-      setIsToggling(true);
+      // For Lovable demo environment, simulate API call
+      if (window.location.host.includes('lovableproject.com')) {
+        console.log("Demo environment detected, simulating service toggle");
+        // Update UI without actual API call
+        setFeatures(prev => ({
+          ...prev,
+          useWebSocket
+        }));
+        
+        toast.success(`Switched to ${useWebSocket ? 'WebSocket' : 'Serial Monitor'} service`, {
+          description: "This is a simulated response in the demo environment"
+        });
+        return;
+      }
       
-      // Make API call to control containers
-      fetch(`/api/system/toggle-service?websocket=${newValue ? 'on' : 'off'}&monitor=${newValue ? 'off' : 'on'}`, {
+      // Make the API call to toggle the service
+      const response = await fetch(`/api/system/toggle-service?${params.toString()}`, {
         method: 'POST',
         headers: {
           'Content-Type': 'application/json'
         }
-      })
-        .then(response => {
-          if (!response.ok) {
-            throw new Error('Failed to toggle service');
-          }
-          return response.json();
-        })
-        .then(data => {
-          setFeatures(prev => ({
-            ...prev,
-            [feature]: newValue
-          }));
-          
-          toast.dismiss();
-          toast.success(
-            newValue ? "WebSocket service activated" : "Serial Monitor service activated", 
-            { description: data.message || "Service switched successfully" }
-          );
-        })
-        .catch(error => {
-          console.error("Error toggling service:", error);
-          
-          // If we're in the Lovable environment or the API endpoint failed,
-          // simulate the toggle for demo purposes
-          setFeatures(prev => ({
-            ...prev,
-            [feature]: newValue
-          }));
-          
-          toast.dismiss();
-          toast.success(
-            newValue ? "WebSocket service activated (simulated)" : "Serial Monitor service activated (simulated)", 
-            { description: "Service toggled in simulation mode" }
-          );
-        })
-        .finally(() => {
-          setIsToggling(false);
-        });
-    } else {
-      // Normal toggle for other features
-      setFeatures(prev => ({
-        ...prev,
-        [feature]: !prev[feature]
-      }));
+      });
+      
+      if (!response.ok) {
+        throw new Error('Failed to toggle service');
+      }
+      
+      // Parse the response
+      const data = await response.json();
+      
+      if (data.status === 'success') {
+        // Update the UI
+        setFeatures(prev => ({
+          ...prev,
+          useWebSocket
+        }));
+        
+        toast.success(data.message || `Switched to ${useWebSocket ? 'WebSocket' : 'Serial Monitor'} service`);
+      } else {
+        throw new Error(data.message || 'Unknown error');
+      }
+    } catch (error) {
+      console.error('Error toggling service:', error);
+      toast.error('Failed to toggle service', {
+        description: error instanceof Error ? error.message : 'Unknown error occurred'
+      });
     }
   };
 
-  const saveSettings = () => {
-    // In a real app, you might save these settings to localStorage or a database
-    toast.success("Settings saved successfully");
+  const handleFeatureToggle = (feature: string) => {
+    setFeatures(prev => ({
+      ...prev,
+      [feature]: !prev[feature]
+    }));
   };
 
   return (
-    <div className="space-y-6">
-      <Card>
-        <CardHeader>
-          <CardTitle className="flex items-center gap-2">
-            <Settings size={20} />
-            Dashboard Features
-          </CardTitle>
-          <CardDescription>
-            Enable or disable dashboard features to customize your view
-          </CardDescription>
-        </CardHeader>
-        <CardContent className="space-y-6">
-          <div className="grid grid-cols-1 md:grid-cols-2 gap-6">
-            <div className="flex items-center justify-between space-x-2">
-              <div className="flex items-center space-x-2">
-                <BarChart size={18} />
-                <Label htmlFor="show-statistics" className="cursor-pointer">Statistics View</Label>
-              </div>
-              <Switch 
-                id="show-statistics" 
-                checked={features.showStatistics} 
-                onCheckedChange={() => handleFeatureToggle('showStatistics')}
-              />
-            </div>
-            
-            <div className="flex items-center justify-between space-x-2">
-              <div className="flex items-center space-x-2">
-                <Gauge size={18} />
-                <Label htmlFor="show-thresholds" className="cursor-pointer">Threshold Settings</Label>
-              </div>
-              <Switch 
-                id="show-thresholds" 
-                checked={features.showThresholds} 
-                onCheckedChange={() => handleFeatureToggle('showThresholds')}
-              />
-            </div>
-            
-            <div className="flex items-center justify-between space-x-2">
-              <div className="flex items-center space-x-2">
-                <FileText size={18} />
-                <Label htmlFor="show-logs" className="cursor-pointer">System Logs</Label>
-              </div>
-              <Switch 
-                id="show-logs" 
-                checked={features.showSystemLogs} 
-                onCheckedChange={() => handleFeatureToggle('showSystemLogs')}
-              />
-            </div>
-            
-            <div className="flex items-center justify-between space-x-2">
-              <div className="flex items-center space-x-2">
-                <Terminal size={18} />
-                <Label htmlFor="show-serial" className="cursor-pointer">Serial Monitor</Label>
-              </div>
-              <Switch 
-                id="show-serial" 
-                checked={features.showSerialMonitor} 
-                onCheckedChange={() => handleFeatureToggle('showSerialMonitor')}
-              />
-            </div>
-
-            <div className="flex items-center justify-between space-x-2 col-span-2 border-t pt-4 mt-2">
-              <div className="flex items-center space-x-2">
-                {features.useWebSocket ? <Wifi size={18} /> : <WifiOff size={18} />}
-                <Label htmlFor="use-websocket" className="cursor-pointer">
-                  Use WebSocket Connection
-                  <p className="text-xs text-muted-foreground mt-1">
-                    {features.useWebSocket 
-                      ? "Using WebSocket to read Arduino data (recommended)" 
-                      : "Using direct Serial Monitor to read Arduino data"}
-                  </p>
-                </Label>
-              </div>
-              <Switch 
-                id="use-websocket" 
-                checked={features.useWebSocket}
-                disabled={isToggling}
-                onCheckedChange={() => handleFeatureToggle('useWebSocket')}
-              />
-            </div>
+    <Card className="w-full">
+      <CardHeader className="pb-2">
+        <CardTitle className="text-2xl font-bold">Feature Settings</CardTitle>
+      </CardHeader>
+      <CardContent>
+        <div className="grid gap-4">
+          <div className="flex items-center justify-between">
+            <Label htmlFor="showStatistics">Show Statistics</Label>
+            <Switch
+              id="showStatistics"
+              checked={features.showStatistics}
+              onCheckedChange={() => handleFeatureToggle('showStatistics')}
+            />
           </div>
-          
-          <Button onClick={saveSettings} className="w-full">Save Settings</Button>
-          
-          <div className="text-sm text-muted-foreground">
-            <p className="font-semibold">Note:</p>
-            <p>Disabling all diagnostic features (System Logs and Serial Monitor) will hide the Diagnostics tab completely.</p>
-            <p>Changes take effect immediately but are not persisted between sessions in this demo.</p>
-            <p className="mt-2 text-xs bg-amber-50 p-2 rounded border border-amber-200">
-              Toggling the WebSocket connection will restart the respective Docker container. This may take a few seconds.
-            </p>
-            <p className="mt-2 text-xs bg-blue-50 p-2 rounded border border-blue-200">
-              In this demo environment, the service toggle is simulated and no actual Docker containers will be restarted.
-            </p>
+          <div className="flex items-center justify-between">
+            <Label htmlFor="showThresholds">Show Thresholds</Label>
+            <Switch
+              id="showThresholds"
+              checked={features.showThresholds}
+              onCheckedChange={() => handleFeatureToggle('showThresholds')}
+            />
           </div>
-        </CardContent>
-      </Card>
-    </div>
+          <div className="flex items-center justify-between">
+            <Label htmlFor="showSystemLogs">Show System Logs</Label>
+            <Switch
+              id="showSystemLogs"
+              checked={features.showSystemLogs}
+              onCheckedChange={() => handleFeatureToggle('showSystemLogs')}
+            />
+          </div>
+          <div className="flex items-center justify-between">
+            <Label htmlFor="showSerialMonitor">Show Serial Monitor</Label>
+            <Switch
+              id="showSerialMonitor"
+              checked={features.showSerialMonitor}
+              onCheckedChange={() => handleFeatureToggle('showSerialMonitor')}
+            />
+          </div>
+          <div className="flex items-center justify-between">
+            <Label htmlFor="useWebSocket">Use WebSocket</Label>
+            <Switch
+              id="useWebSocket"
+              checked={features.useWebSocket}
+              onCheckedChange={(checked) => handleServiceToggle(checked)}
+            />
+          </div>
+        </div>
+      </CardContent>
+    </Card>
   );
 };
 

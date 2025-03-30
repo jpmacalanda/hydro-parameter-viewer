@@ -16,10 +16,25 @@ async def http_handler(path, request_headers):
     """Handle HTTP requests including API endpoints and health checks"""
     logger.debug(f"Received HTTP request: {path}")
     
+    # Add CORS headers to all responses
+    cors_headers = {
+        'Access-Control-Allow-Origin': '*',
+        'Access-Control-Allow-Methods': 'GET, POST, OPTIONS',
+        'Access-Control-Allow-Headers': 'Content-Type'
+    }
+    
+    # Handle OPTIONS preflight requests for CORS
+    if request_headers.get('method') == 'OPTIONS':
+        headers = {
+            **cors_headers,
+            'Access-Control-Max-Age': '86400',  # 24 hours
+        }
+        return 204, headers, b''
+    
     # Health check endpoint
     if path == '/health':
         logger.info("Health check request received")
-        return 200, {'Content-Type': 'text/plain'}, b'healthy\n'
+        return 200, {'Content-Type': 'text/plain', **cors_headers}, b'healthy\n'
     
     # API status endpoint
     elif path == '/api/status':
@@ -49,14 +64,12 @@ async def http_handler(path, request_headers):
             response_json = json.dumps(response_data).encode('utf-8')
             headers = {
                 'Content-Type': 'application/json',
-                'Access-Control-Allow-Origin': '*',
-                'Access-Control-Allow-Methods': 'GET, POST, OPTIONS',
-                'Access-Control-Allow-Headers': 'Content-Type'
+                **cors_headers
             }
             return 200, headers, response_json
         except Exception as e:
             logger.error(f"Error in API status endpoint: {e}")
-            return 500, {'Content-Type': 'application/json'}, json.dumps({'error': str(e)}).encode('utf-8')
+            return 500, {'Content-Type': 'application/json', **cors_headers}, json.dumps({'error': str(e)}).encode('utf-8')
     
     # System control endpoint to toggle between WebSocket and Serial Monitor
     elif path.startswith('/api/system/toggle-service'):
@@ -103,9 +116,7 @@ async def http_handler(path, request_headers):
                 response_json = json.dumps(response_data).encode('utf-8')
                 headers = {
                     'Content-Type': 'application/json',
-                    'Access-Control-Allow-Origin': '*',
-                    'Access-Control-Allow-Methods': 'GET, POST, OPTIONS',
-                    'Access-Control-Allow-Headers': 'Content-Type'
+                    **cors_headers
                 }
                 return 200, headers, response_json
             except subprocess.CalledProcessError as e:
@@ -115,22 +126,12 @@ async def http_handler(path, request_headers):
                     'status': 'error',
                     'message': error_message
                 }
-                return 500, {'Content-Type': 'application/json'}, json.dumps(response_data).encode('utf-8')
+                return 500, {'Content-Type': 'application/json', **cors_headers}, json.dumps(response_data).encode('utf-8')
         except Exception as e:
             logger.error(f"Error in toggle service endpoint: {e}")
-            return 500, {'Content-Type': 'application/json'}, json.dumps({'error': str(e)}).encode('utf-8')
-    
-    # Handle OPTIONS preflight requests for CORS
-    elif request_headers.get('method') == 'OPTIONS':
-        headers = {
-            'Access-Control-Allow-Origin': '*',
-            'Access-Control-Allow-Methods': 'GET, POST, OPTIONS',
-            'Access-Control-Allow-Headers': 'Content-Type',
-            'Access-Control-Max-Age': '86400',  # 24 hours
-        }
-        return 204, headers, b''
+            return 500, {'Content-Type': 'application/json', **cors_headers}, json.dumps({'error': str(e)}).encode('utf-8')
         
     # Handle unknown endpoints
     else:
         logger.warning(f"Unknown endpoint requested: {path}")
-        return 404, {'Content-Type': 'text/plain'}, b'Not Found\n'
+        return 404, {'Content-Type': 'text/plain', **cors_headers}, b'Not Found\n'
