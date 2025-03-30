@@ -68,12 +68,15 @@ class SerialService {
         });
       });
       
-      // Set up error handler from logs
-      logParserService.onError((error) => {
-        console.error("[DOCKER-LOG][SerialService] Error from log parser:", error);
-        this.handleConnectionError(error.message);
+      // Set up error handler from logs - using event listener instead of direct callback
+      // Handle errors through the event system since onError method doesn't exist
+      document.addEventListener('parser-error', (event: Event) => {
+        const customEvent = event as CustomEvent;
+        console.error("[DOCKER-LOG][SerialService] Error from log parser:", customEvent.detail);
+        this.handleConnectionError(customEvent.detail.message);
         
         // Propagate error to registered callbacks
+        const error = new Error(customEvent.detail.message);
         this.errorCallbacks.forEach(callback => {
           callback(error);
         });
