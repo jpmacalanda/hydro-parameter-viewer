@@ -48,25 +48,14 @@ const DashboardContent: React.FC<DashboardProps> = ({
   onSensorData
 }) => {
   const [connected, setConnected] = useState(true); // Always show as connected
-  const [lastUpdate, setLastUpdate] = useState<Date | null>(new Date()); // Initialize with current time
+  const [lastUpdate, setLastUpdate] = useState<Date | null>(null);
   const [showGraphs, setShowGraphs] = useState(false);
   
-  const [phHistory, setPhHistory] = useState(Array.from({length: 24}, (_, i) => ({
-    time: `${i}:00`,
-    value: 6.5 + Math.random() * 1.0
-  })));
-  
-  const [tempHistory, setTempHistory] = useState(Array.from({length: 24}, (_, i) => ({
-    time: `${i}:00`,
-    value: 22 + Math.random() * 6.0
-  })));
-  
-  const [tdsHistory, setTdsHistory] = useState(Array.from({length: 24}, (_, i) => ({
-    time: `${i}:00`,
-    value: 600 + Math.random() * 150
-  })));
+  const [phHistory, setPhHistory] = useState<Array<{time: string; value: number}>>([]);
+  const [tempHistory, setTempHistory] = useState<Array<{time: string; value: number}>>([]);
+  const [tdsHistory, setTdsHistory] = useState<Array<{time: string; value: number}>>([]);
 
-  const [lastDataReceived, setLastDataReceived] = useState<Date | null>(new Date()); // Initialize with current time
+  const [lastDataReceived, setLastDataReceived] = useState<Date | null>(null);
   const [isRemoteAccess, setIsRemoteAccess] = useState(false);
   const { addNotification } = useNotifications();
 
@@ -74,37 +63,42 @@ const DashboardContent: React.FC<DashboardProps> = ({
   useEffect(() => {
     console.log("Dashboard: Sensor data updated:", sensorData);
     
-    if (sensorData) {
+    if (sensorData && (sensorData.ph !== 0 || sensorData.temperature !== 0 || sensorData.tds !== 0)) {
       setLastUpdate(new Date());
       setLastDataReceived(new Date());
       
       // Update histories with new data point
       const currentHour = new Date().getHours();
-      const timeString = `${currentHour}:${new Date().getMinutes()}`;
+      const currentMinute = new Date().getMinutes();
+      const timeString = `${currentHour}:${currentMinute < 10 ? '0' : ''}${currentMinute}`;
       
-      // Update pH history
-      setPhHistory(prev => {
-        const newHistory = [...prev];
-        newHistory.push({ time: timeString, value: sensorData.ph });
-        if (newHistory.length > 24) newHistory.shift();
-        return newHistory;
-      });
+      // Only update histories with valid data
+      if (sensorData.ph !== 0) {
+        setPhHistory(prev => {
+          const newHistory = [...prev];
+          newHistory.push({ time: timeString, value: sensorData.ph });
+          if (newHistory.length > 24) newHistory.shift();
+          return newHistory;
+        });
+      }
       
-      // Update temperature history
-      setTempHistory(prev => {
-        const newHistory = [...prev];
-        newHistory.push({ time: timeString, value: sensorData.temperature });
-        if (newHistory.length > 24) newHistory.shift();
-        return newHistory;
-      });
+      if (sensorData.temperature !== 0) {
+        setTempHistory(prev => {
+          const newHistory = [...prev];
+          newHistory.push({ time: timeString, value: sensorData.temperature });
+          if (newHistory.length > 24) newHistory.shift();
+          return newHistory;
+        });
+      }
       
-      // Update TDS history
-      setTdsHistory(prev => {
-        const newHistory = [...prev];
-        newHistory.push({ time: timeString, value: sensorData.tds });
-        if (newHistory.length > 24) newHistory.shift();
-        return newHistory;
-      });
+      if (sensorData.tds !== 0) {
+        setTdsHistory(prev => {
+          const newHistory = [...prev];
+          newHistory.push({ time: timeString, value: sensorData.tds });
+          if (newHistory.length > 24) newHistory.shift();
+          return newHistory;
+        });
+      }
     }
   }, [sensorData]);
 
@@ -135,12 +129,8 @@ const DashboardContent: React.FC<DashboardProps> = ({
     setIsRemoteAccess(isRemote);
     console.log("Dashboard: Remote access:", isRemote);
 
-    // Set initial time
-    setLastUpdate(new Date());
-    setLastDataReceived(new Date());
-
     return () => {
-      // Cleanup function (empty since the service handles this)
+      // Cleanup function
       console.log("Dashboard: Cleanup effect");
     };
   }, [addNotification, onSensorData]);

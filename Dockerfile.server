@@ -26,15 +26,13 @@ RUN cat > /app/entrypoint.sh << 'EOF'
 echo "Checking for Arduino device..."
 if [ ! -c /dev/ttyUSB0 ]; then
   echo "WARNING: Arduino device not found at /dev/ttyUSB0"
-  echo "The server will start with mock data enabled."
-  export MOCK_DATA=true
+  echo "The server will start with real data from logs."
 elif [ ! -w /dev/ttyUSB0 ]; then
   echo "WARNING: Arduino device at /dev/ttyUSB0 is not writable"
   echo "Attempting to fix permissions with chmod..."
   chmod 666 /dev/ttyUSB0 2>/dev/null
   if [ ! -w /dev/ttyUSB0 ]; then
-    echo "Failed to make device writable. The server will start with mock data enabled."
-    export MOCK_DATA=true
+    echo "Failed to make device writable. The server will start with real data from logs."
   else
     echo "Successfully fixed permissions for /dev/ttyUSB0"
     export MOCK_DATA=false
@@ -49,20 +47,18 @@ if lsof /dev/ttyUSB0 > /dev/null 2>&1; then
   if lsof /dev/ttyUSB0 | grep -q "serial_monitor"; then
     echo "Serial port is used by our serial_monitor.py - this is fine"
     export MOCK_DATA=false
-  else
-    echo "The server will start with mock data enabled."
-    export MOCK_DATA=true
   fi
 fi
 
 # Final check
-if [ "$MOCK_DATA" = "false" ] && [ -c /dev/ttyUSB0 ] && [ -w /dev/ttyUSB0 ]; then
+if [ -c /dev/ttyUSB0 ] && [ -w /dev/ttyUSB0 ]; then
   echo "Arduino device is available and writable at /dev/ttyUSB0"
   echo "Using real data from Arduino"
 else
-  echo "Using mock data mode"
+  echo "Using real data from logs"
 fi
 
+export MOCK_DATA=false
 exec python3 hydroponics_server.py
 EOF
 

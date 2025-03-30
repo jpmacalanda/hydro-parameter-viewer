@@ -1,3 +1,4 @@
+
 import React, { useState, useEffect } from 'react';
 import { BrowserRouter as Router, Route, Routes } from 'react-router-dom';
 import { Toaster } from "sonner";
@@ -13,10 +14,10 @@ import { toast } from 'sonner';
 function App() {
   const [isConnected, setIsConnected] = useState(false);
   const [sensorData, setSensorData] = useState<SerialData>({
-    ph: 6.5,
-    temperature: 23.0,
+    ph: 0,
+    temperature: 0,
     waterLevel: "medium",
-    tds: 650
+    tds: 0
   });
   const [dataHistory, setDataHistory] = useState<SerialData[]>([]);
   const [thresholds, setThresholds] = useState({
@@ -50,19 +51,9 @@ function App() {
       logParserService.onData(handleSensorData);
       logParserService.startPolling();
       
-      // Force dataReceived to true after a short delay (500ms)
-      // This ensures the UI always shows data status correctly
-      const timeoutId = setTimeout(() => {
-        if (!dataReceived) {
-          console.log("[DOCKER-LOG][App] Forcing dataReceived to true after timeout");
-          setDataReceived(true);
-        }
-      }, 500);
-      
       return () => {
         console.log("[DOCKER-LOG][App] Cleaning up log parser (connected state cleanup)");
         logParserService.stopPolling();
-        clearTimeout(timeoutId);
       };
     }
     
@@ -71,7 +62,7 @@ function App() {
       console.log("[DOCKER-LOG][App] Cleaning up log parser (general cleanup)");
       logParserService.stopPolling();
     };
-  }, [isConnected, dataReceived]);
+  }, [isConnected]);
   
   // Log current state values
   useEffect(() => {
@@ -84,11 +75,6 @@ function App() {
     console.log("[DOCKER-LOG][App] handleConnect called");
     setIsConnected(true);
     setDataReceived(false);
-    
-    // Set a timeout to force dataReceived to true
-    setTimeout(() => {
-      setDataReceived(true);
-    }, 1500);
   };
 
   const handleDisconnect = () => {

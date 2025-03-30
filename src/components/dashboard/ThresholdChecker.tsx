@@ -20,6 +20,11 @@ const ThresholdChecker: React.FC<ThresholdCheckerProps> = ({ sensorData, thresho
   const [lastNotificationTime, setLastNotificationTime] = useState<Record<string, number>>({});
 
   useEffect(() => {
+    // Skip checking if the sensor data is all zeros (initial state)
+    if (sensorData.ph === 0 && sensorData.temperature === 0 && sensorData.tds === 0) {
+      return;
+    }
+    
     // To prevent notification spam, only send a notification for a parameter
     // if we haven't sent one in the last 30 seconds
     const now = Date.now();
