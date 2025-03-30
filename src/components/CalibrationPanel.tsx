@@ -32,7 +32,6 @@ const CalibrationPanel: React.FC<CalibrationPanelProps> = ({
   const [tdsKnownSolution, setTdsKnownSolution] = useState(500);
   const [tdsCurrentReading, setTdsCurrentReading] = useState(500);
   
-  // Reset calibration to defaults
   const handleReset = () => {
     setPhOffset(0);
     setTdsCalibrationFactor(1.0);
@@ -47,9 +46,7 @@ const CalibrationPanel: React.FC<CalibrationPanelProps> = ({
     });
   };
   
-  // Calculate pH calibration from a known solution
   const calculatePhCalibration = () => {
-    // Calculate the difference between known solution and current reading
     const newOffset = phKnownSolution - phCurrentReading;
     setPhOffset(newOffset);
     
@@ -63,15 +60,12 @@ const CalibrationPanel: React.FC<CalibrationPanelProps> = ({
     });
   };
   
-  // Calculate TDS calibration from a known solution
   const calculateTdsCalibration = () => {
-    // Avoid division by zero
     if (tdsCurrentReading === 0) {
       toast.error("Current TDS reading cannot be zero");
       return;
     }
     
-    // Calculate calibration factor (known / current)
     const newFactor = tdsKnownSolution / tdsCurrentReading;
     setTdsCalibrationFactor(newFactor);
     
@@ -85,7 +79,6 @@ const CalibrationPanel: React.FC<CalibrationPanelProps> = ({
     });
   };
   
-  // Apply manual calibration values
   const applyManualCalibration = () => {
     onCalibrate({
       phOffset,
@@ -112,7 +105,6 @@ const CalibrationPanel: React.FC<CalibrationPanelProps> = ({
           
           <TabsContent value="guided" className="space-y-6">
             <div className="space-y-6">
-              {/* pH Calibration Section */}
               <div className="p-4 border rounded-lg space-y-4">
                 <h3 className="text-lg font-medium flex items-center gap-2">
                   <Beaker className="h-5 w-5 text-blue-600" />
@@ -178,7 +170,6 @@ const CalibrationPanel: React.FC<CalibrationPanelProps> = ({
                 </Button>
               </div>
               
-              {/* TDS Calibration Section */}
               <div className="p-4 border rounded-lg space-y-4">
                 <h3 className="text-lg font-medium flex items-center gap-2">
                   <Beaker className="h-5 w-5 text-green-600" />
@@ -250,7 +241,6 @@ const CalibrationPanel: React.FC<CalibrationPanelProps> = ({
           
           <TabsContent value="manual" className="space-y-6">
             <div className="space-y-6">
-              {/* Manual pH Calibration */}
               <div className="space-y-4">
                 <h3 className="text-lg font-medium flex items-center gap-2">
                   <Beaker className="h-5 w-5 text-blue-600" />
@@ -292,10 +282,9 @@ const CalibrationPanel: React.FC<CalibrationPanelProps> = ({
                 </div>
               </div>
               
-              {/* Manual TDS Calibration */}
               <div className="space-y-4">
                 <h3 className="text-lg font-medium flex items-center gap-2">
-                  <Flask className="h-5 w-5 text-green-600" />
+                  <Beaker className="h-5 w-5 text-green-600" />
                   Manual TDS Calibration Factor
                 </h3>
                 
