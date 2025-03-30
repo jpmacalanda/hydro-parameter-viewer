@@ -34,7 +34,7 @@ const SystemInfoPanel: React.FC<SystemInfoPanelProps> = ({
           <div>
             <h3 className="font-medium text-sm text-gray-500">Last Update</h3>
             <p className="text-lg">
-              {lastUpdate ? lastUpdate.toLocaleTimeString() : 'No data received'}
+              {lastUpdate ? lastUpdate.toLocaleTimeString() : '-'}
             </p>
           </div>
           <div>
