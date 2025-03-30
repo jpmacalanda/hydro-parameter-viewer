@@ -10,6 +10,7 @@ import time
 import os
 import sys
 import logging
+import json
 from datetime import datetime
 
 # Set up logging to both console and file
@@ -46,8 +47,14 @@ def generate_mock_data():
         tds = random.randint(400, 800)
         data_str = f"pH:{ph},temp:{temp},water:{water_level},tds:{tds}"
         logger.info(f"MOCK DATA: {data_str}")
-        # Also log in JSON format for easier parsing
-        logger.info(f"Parsed data: {{\"ph\":{ph},\"temperature\":{temp},\"waterLevel\":\"{water_level.upper()}\",\"tds\":{tds}}}")
+        
+        # Log data in JSON format for easier parsing
+        json_data = {"ph": ph, "temperature": temp, "waterLevel": water_level.upper(), "tds": tds}
+        logger.info(f"Parsed data: {json.dumps(json_data)}")
+        logger.info(f"JSON parsed_data={json.dumps(json_data)}")
+        
+        # Also log in the format that the app is looking for
+        logger.info(f"pH:{ph},temp:{temp},water:{water_level.upper()},tds:{tds}")
         time.sleep(2)
 
 def main():
@@ -121,8 +128,14 @@ def main():
                                 water = data['water'].upper()
                                 tds = int(data['tds'])
                                 
-                                # Log in JSON format for easier parsing
-                                logger.info(f"Parsed data: {{\"ph\":{ph},\"temperature\":{temp},\"waterLevel\":\"{water}\",\"tds\":{tds}}}")
+                                # Log in both formats for easier debugging
+                                # JSON format
+                                json_data = {"ph": ph, "temperature": temp, "waterLevel": water, "tds": tds}
+                                logger.info(f"Parsed data: {json.dumps(json_data)}")
+                                logger.info(f"JSON parsed_data={json.dumps(json_data)}")
+                                
+                                # Raw format
+                                logger.info(f"pH:{ph},temp:{temp},water:{water},tds:{tds}")
                         except Exception as e:
                             logger.error(f"Error parsing data: {e}")
                 else:

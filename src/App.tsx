@@ -40,11 +40,11 @@ function App() {
   
   // Effect to start/stop log parsing based on connection
   useEffect(() => {
-    console.log("App: Connection state changed:", isConnected);
+    console.log("[App] Connection state changed:", isConnected);
     
     if (isConnected) {
       // Start log parsing
-      console.log("App: Starting to read data from Serial Monitor logs");
+      console.log("[App] Starting to read data from Serial Monitor logs");
       toast.info("Reading data from Serial Monitor logs", {
         description: "Parsing logs for sensor data"
       });
@@ -53,43 +53,43 @@ function App() {
       logParserService.startPolling();
       
       return () => {
-        console.log("App: Cleaning up log parser (connected state cleanup)");
+        console.log("[App] Cleaning up log parser (connected state cleanup)");
         logParserService.stopPolling();
       };
     }
     
     return () => {
       // Cleanup
-      console.log("App: Cleaning up log parser (general cleanup)");
+      console.log("[App] Cleaning up log parser (general cleanup)");
       logParserService.stopPolling();
     };
   }, [isConnected]);
   
   // Log current state values
   useEffect(() => {
-    console.log("App: Current state - connected:", isConnected, "dataReceived:", dataReceived);
-    console.log("App: Current sensor data:", sensorData);
-    console.log("App: Data history length:", dataHistory.length);
+    console.log("[App] Current state - connected:", isConnected, "dataReceived:", dataReceived);
+    console.log("[App] Current sensor data:", sensorData);
+    console.log("[App] Data history length:", dataHistory.length);
   }, [isConnected, dataReceived, sensorData, dataHistory]);
   
   const handleConnect = () => {
-    console.log("App: handleConnect called");
+    console.log("[App] handleConnect called");
     setIsConnected(true);
     setDataReceived(false);
   };
 
   const handleDisconnect = () => {
-    console.log("App: handleDisconnect called");
+    console.log("[App] handleDisconnect called");
     setIsConnected(false);
     setDataReceived(false);
   };
 
   const handleSensorData = (data: SerialData) => {
-    console.log("App: Received new sensor data:", data);
+    console.log("[App] Received new sensor data:", data);
     setSensorData(data);
     setDataHistory(prev => {
       const newHistory = [...prev, data];
-      console.log("App: Updated data history, new length:", newHistory.length);
+      console.log("[App] Updated data history, new length:", newHistory.length);
       return newHistory;
     });
     setDataReceived(true);
