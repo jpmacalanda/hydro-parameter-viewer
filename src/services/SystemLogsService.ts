@@ -8,6 +8,7 @@ class SystemLogsService {
   private polling: boolean = false;
   private pollingInterval: ReturnType<typeof setInterval> | null = null;
   private containerType: 'webapp' | 'websocket' = 'websocket';
+  private lastLogLength: number = 0;
 
   constructor() {
     // Default to websocket container logs
@@ -49,13 +50,31 @@ class SystemLogsService {
    */
   private async fetchLogs(): Promise<void> {
     try {
-      // In a production environment, you would fetch logs from an API endpoint
-      // For this demo, we'll generate some mock logs since we can't directly access Docker in the browser
+      // Use real logs from the logs server
+      const endpoint = this.containerType === 'websocket' 
+        ? '/logs' 
+        : '/api/logs';
       
-      const mockLogs = this.generateMockLogs();
-      this.notifyLogCallbacks(mockLogs);
+      const response = await fetch(endpoint);
+      
+      if (!response.ok) {
+        throw new Error(`HTTP error: ${response.status}`);
+      }
+      
+      const logs = await response.text();
+      
+      if (logs && logs !== "") {
+        this.notifyLogCallbacks(logs);
+      } else {
+        console.warn("Received empty logs from server");
+      }
     } catch (error) {
       console.error('Error fetching logs:', error);
+      
+      // If we can't get real logs, fall back to mock logs
+      const mockLogs = this.generateMockLogs();
+      this.notifyLogCallbacks(mockLogs);
+      
       toast.error('Failed to fetch system logs', {
         description: 'Could not retrieve container logs'
       });
@@ -64,7 +83,7 @@ class SystemLogsService {
 
   /**
    * Generate mock logs based on container type
-   * In a real implementation, these would come from an API endpoint
+   * Used as fallback when server logs are unavailable
    */
   private generateMockLogs(): string {
     const now = new Date().toISOString();
@@ -101,14 +120,14 @@ ${now} - INFO - Served static content`;
   removeCallback(callback: LogCallback): void {
     const index = this.logCallbacks.indexOf(callback);
     if (index !== -1) {
-      this.logCallbacks.splice(index, 1);
+      this.callbacks.splice(index, 1);
     }
   }
 
   /**
    * Notify all callbacks with new logs
    */
-  private notifyLogCallbacks(logs: string): void {
+  private notifyCallbacks(logs: string): void {
     this.logCallbacks.forEach((callback) => callback(logs));
   }
 }
