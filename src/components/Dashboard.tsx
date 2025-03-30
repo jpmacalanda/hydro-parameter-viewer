@@ -14,6 +14,7 @@ import { Tabs, TabsContent, TabsList, TabsTrigger } from "@/components/ui/tabs";
 import { SerialData } from '@/services/types/serial.types';
 import serialService from '@/services/SerialService';
 import SystemLogs from './SystemLogs';
+import FeatureSettings from './FeatureSettings';
 
 const Dashboard: React.FC = () => {
   const [sensorData, setSensorData] = useState<SerialData>({
@@ -33,6 +34,14 @@ const Dashboard: React.FC = () => {
     tdsMax: 700,
   });
   const [showGraphs, setShowGraphs] = useState(false);
+  
+  // Feature toggles
+  const [features, setFeatures] = useState({
+    showStatistics: true,
+    showThresholds: true,
+    showSystemLogs: true,
+    showSerialMonitor: true,
+  });
   
   // Generate sample data for historical graphs
   const [phHistory, setPhHistory] = useState(Array.from({length: 24}, (_, i) => ({
@@ -110,27 +119,55 @@ const Dashboard: React.FC = () => {
         thresholds={thresholds}
       />
       
-      {/* System Logs - New Component */}
-      <div className="mt-6">
-        <SystemLogs />
-      </div>
-      
       {/* Tabbed interface for advanced features */}
       <div className="mt-6">
         <Tabs defaultValue="statistics">
-          <TabsList className="grid w-full grid-cols-3">
-            <TabsTrigger value="statistics">Statistics</TabsTrigger>
-            <TabsTrigger value="thresholds">Thresholds</TabsTrigger>
-            <TabsTrigger value="serial">Serial Monitor</TabsTrigger>
+          <TabsList className="grid w-full grid-cols-4">
+            {features.showStatistics && <TabsTrigger value="statistics">Statistics</TabsTrigger>}
+            {features.showThresholds && <TabsTrigger value="thresholds">Thresholds</TabsTrigger>}
+            {(features.showSystemLogs || features.showSerialMonitor) && 
+              <TabsTrigger value="diagnostics">Diagnostics</TabsTrigger>
+            }
+            <TabsTrigger value="settings">Settings</TabsTrigger>
           </TabsList>
-          <TabsContent value="statistics" className="mt-6">
-            <StatisticsView sensorData={sensorData} />
-          </TabsContent>
-          <TabsContent value="thresholds" className="mt-6">
-            <ThresholdSettings thresholds={thresholds} setThresholds={setThresholds} />
-          </TabsContent>
-          <TabsContent value="serial" className="mt-6">
-            <SerialMonitor />
+          
+          {features.showStatistics && (
+            <TabsContent value="statistics" className="mt-6">
+              <StatisticsView sensorData={sensorData} />
+            </TabsContent>
+          )}
+          
+          {features.showThresholds && (
+            <TabsContent value="thresholds" className="mt-6">
+              <ThresholdSettings thresholds={thresholds} setThresholds={setThresholds} />
+            </TabsContent>
+          )}
+          
+          {(features.showSystemLogs || features.showSerialMonitor) && (
+            <TabsContent value="diagnostics" className="mt-6">
+              <Tabs defaultValue={features.showSystemLogs ? "logs" : "serial"}>
+                <TabsList>
+                  {features.showSystemLogs && <TabsTrigger value="logs">System Logs</TabsTrigger>}
+                  {features.showSerialMonitor && <TabsTrigger value="serial">Serial Monitor</TabsTrigger>}
+                </TabsList>
+                
+                {features.showSystemLogs && (
+                  <TabsContent value="logs" className="mt-4">
+                    <SystemLogs />
+                  </TabsContent>
+                )}
+                
+                {features.showSerialMonitor && (
+                  <TabsContent value="serial" className="mt-4">
+                    <SerialMonitor />
+                  </TabsContent>
+                )}
+              </Tabs>
+            </TabsContent>
+          )}
+          
+          <TabsContent value="settings" className="mt-6">
+            <FeatureSettings features={features} setFeatures={setFeatures} />
           </TabsContent>
         </Tabs>
       </div>
