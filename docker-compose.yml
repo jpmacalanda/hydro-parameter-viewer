@@ -20,14 +20,13 @@ services:
       dockerfile: Dockerfile.server
     ports:
       - "8081:8081"
-    # Make device mounting optional
-    # devices:
-    #   - "/dev/ttyUSB0:/dev/ttyUSB0"
+    devices:
+      - "/dev/ttyUSB0:/dev/ttyUSB0"
     volumes:
       - ./ssl:/etc/nginx/ssl
     environment:
       - USE_SSL=true
-      - MOCK_DATA=true  # Enable mock data when USB device is unavailable
+      - MOCK_DATA=false  # Disable mock data since real Arduino is connected
     networks:
       - hydroponics-network
 
