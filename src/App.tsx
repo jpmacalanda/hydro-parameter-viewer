@@ -1,3 +1,4 @@
+
 import React, { useState, useEffect } from 'react';
 import { BrowserRouter as Router, Route, Routes } from 'react-router-dom';
 import { Toaster } from "sonner";
@@ -5,13 +6,14 @@ import { Toaster } from "sonner";
 import Dashboard from './components/Dashboard';
 import ConnectionControl from './components/ConnectionControl';
 import { NotificationsProvider } from '@/context/NotificationsContext';
+import serialService from '@/services/SerialService';
 
 function App() {
   const [isConnected, setIsConnected] = useState(false);
   const [sensorData, setSensorData] = useState({
     ph: 7.0,
     temperature: 25.0,
-    waterLevel: "MEDIUM",
+    waterLevel: "medium", // Changed from "MEDIUM" to "medium" to match type
     tds: 650
   });
   const [dataHistory, setDataHistory] = useState([]);

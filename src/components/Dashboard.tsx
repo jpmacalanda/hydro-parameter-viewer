@@ -1,4 +1,3 @@
-
 import React, { useState, useEffect } from 'react';
 import MonitoringPanel from './dashboard/MonitoringPanel';
 import SystemInfoPanel from './dashboard/SystemInfoPanel';
@@ -12,7 +11,44 @@ import { NotificationsProvider, useNotifications } from '@/context/Notifications
 import ThresholdChecker from './dashboard/ThresholdChecker';
 import ConnectionDetection from './dashboard/ConnectionDetection';
 
-const DashboardContent: React.FC = () => {
+interface DashboardProps {
+  features: {
+    showStatistics: boolean;
+    showThresholds: boolean;
+    showSystemLogs: boolean;
+    showSerialMonitor: boolean;
+    useWebSocket: boolean;
+  };
+  sensorData: SerialData;
+  dataHistory: SerialData[];
+  thresholds: {
+    phMin: number;
+    phMax: number;
+    temperatureMin: number;
+    temperatureMax: number;
+    tdsMin: number;
+    tdsMax: number;
+  };
+  setThresholds: (thresholds: any) => void;
+  setFeatures: React.Dispatch<React.SetStateAction<{
+    showStatistics: boolean;
+    showThresholds: boolean;
+    showSystemLogs: boolean;
+    showSerialMonitor: boolean;
+    useWebSocket: boolean;
+  }>>;
+  onSensorData: (data: SerialData) => void;
+}
+
+const DashboardContent: React.FC<DashboardProps> = ({
+  features,
+  sensorData,
+  dataHistory,
+  thresholds,
+  setThresholds,
+  setFeatures,
+  onSensorData
+}) => {
   const [sensorData, setSensorData] = useState<SerialData>({
     ph: 7.0,
     temperature: 25.0,
@@ -73,6 +109,8 @@ const DashboardContent: React.FC = () => {
         }
         return newHistory;
       });
+      
+      onSensorData(data);
     });
 
     serialService.onError((error) => {
@@ -90,7 +128,7 @@ const DashboardContent: React.FC = () => {
     return () => {
       // Cleanup function (empty since the service handles this)
     };
-  }, [addNotification]);
+  }, [addNotification, onSensorData]);
 
   const handleConnect = () => {
     setConnected(true);
@@ -145,11 +183,10 @@ const DashboardContent: React.FC = () => {
   );
 };
 
-// Wrapper component to provide context
-const Dashboard: React.FC = () => {
+const Dashboard: React.FC<DashboardProps> = (props) => {
   return (
     <NotificationsProvider>
-      <DashboardContent />
+      <DashboardContent {...props} />
     </NotificationsProvider>
   );
 };
