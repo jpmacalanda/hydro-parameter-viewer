@@ -26,8 +26,9 @@ COPY docker-entrypoint.sh /docker-entrypoint.sh
 # Fix line endings and make executable
 RUN dos2unix /docker-entrypoint.sh && \
     chmod +x /docker-entrypoint.sh && \
-    sed -i '1s/^/#!/bin/sh\n/' /docker-entrypoint.sh && \
-    sed -i '1{/^#!/!s/^/#!/bin/sh\n/}' /docker-entrypoint.sh
+    echo '#!/bin/sh' > /tmp/tmpfile && \
+    cat /docker-entrypoint.sh >> /tmp/tmpfile && \
+    mv /tmp/tmpfile /docker-entrypoint.sh
 
 # Verify script is readable
 RUN cat /docker-entrypoint.sh
