@@ -162,21 +162,41 @@ if MOCK_DATA:
 
 connected_clients = set()
 
-# Fixed HTTP handler function - Properly returns WebSocket response objects
+# Improved HTTP handler function - Properly returns HTTP responses for different paths
 async def http_handler(path, request_headers):
     """Handle regular HTTP requests to provide a health endpoint and API access"""
-    logger.debug(f"HTTP request received for path: {path}")
+    logger.debug(f"HTTP request received for path: {path}, headers: {request_headers}")
     
+    # Enhanced headers for CORS support
+    cors_headers = [
+        ('Content-Type', 'text/plain'),
+        ('Access-Control-Allow-Origin', '*'),
+        ('Access-Control-Allow-Methods', 'GET, OPTIONS, POST'),
+        ('Access-Control-Allow-Headers', 'Content-Type, Authorization'),
+        ('Access-Control-Max-Age', '86400'),  # 24 hours
+    ]
+    
+    # Handle preflight OPTIONS requests
+    if request_headers.get('method', '') == 'OPTIONS':
+        logger.info(f"Received OPTIONS request to {path}")
+        return http.HTTPStatus.OK, cors_headers, b""
+        
     if path == '/health' or path == '/':
         logger.info(f"Received HTTP request to {path}")
-        
-        # Return a proper HTTP response with correct headers
+        return http.HTTPStatus.OK, cors_headers, b"healthy\n"
+    
+    if path == '/api/status':
+        # Example API endpoint that returns server status
+        data = {
+            "status": "running",
+            "mockData": MOCK_DATA,
+            "connectedClients": len(connected_clients),
+            "time": datetime.now().isoformat()
+        }
         return http.HTTPStatus.OK, [
-            ('Content-Type', 'text/plain'),
+            ('Content-Type', 'application/json'),
             ('Access-Control-Allow-Origin', '*'),
-            ('Access-Control-Allow-Methods', 'GET, OPTIONS'),
-            ('Access-Control-Allow-Headers', 'Content-Type'),
-        ], b"healthy\n"
+        ], json.dumps(data).encode('utf-8')
     
     # For any other path, also return 200 OK with info
     logger.info(f"Received HTTP request to unknown path: {path}")
@@ -186,13 +206,14 @@ async def http_handler(path, request_headers):
         "This is the WebSocket server for the Hydroponics Monitoring System.\n"
         "For the web interface, please access the web application.\n"
         "For WebSocket connections, connect to ws://hostname:8081\n"
+        "Available endpoints:\n"
+        "- /health        - Server health check\n"
+        "- /api/status    - Server status in JSON format\n"
     ).encode('utf-8')
     
-    return http.HTTPStatus.OK, [
-        ('Content-Type', 'text/plain'),
-        ('Access-Control-Allow-Origin', '*'),
-    ], body
+    return http.HTTPStatus.OK, cors_headers, body
 
+# Enhanced WebSocket handler with better error handling
 async def websocket_handler(websocket, path):
     """Handle WebSocket connections for data streaming"""
     client_address = websocket.remote_address if hasattr(websocket, 'remote_address') else 'Unknown'
@@ -201,7 +222,8 @@ async def websocket_handler(websocket, path):
     
     # Log request headers for debugging
     if hasattr(websocket, 'request_headers'):
-        logger.debug(f"Client request headers: {websocket.request_headers}")
+        headers_str = ", ".join([f"{k}: {v}" for k, v in websocket.request_headers.items()])
+        logger.debug(f"Client request headers: {headers_str}")
     
     connected_clients.add(websocket)
     try:
@@ -237,7 +259,6 @@ async def websocket_handler(websocket, path):
 
 async def generate_mock_data():
     """Generate mock sensor data when no Arduino is connected"""
-    # ... keep existing code (mock data generation logic)
     ph = 6.5
     temp = 23.0
     tds = 650
@@ -436,6 +457,7 @@ async def main():
             logger.error(f"Error enumerating network interfaces: {e}")
         
         # Updated websockets server with explicitly configured ping_interval and close_timeout
+        # and better handling of client connections
         server = await websockets.serve(
             websocket_handler,
             "0.0.0.0", 
@@ -453,6 +475,31 @@ async def main():
         logger.info(f"Server running on port {WS_PORT} {'with SSL' if ssl_context else 'without SSL'}")
         
         serial_task = asyncio.create_task(read_serial())
+        
+        # Create a simple HTTP server to improve compatibility with different clients
+        try:
+            from aiohttp import web
+            
+            async def health_handler(request):
+                return web.Response(text="healthy\n")
+            
+            app = web.Application()
+            app.add_routes([web.get('/health', health_handler)])
+            
+            # Start HTTP server on a different port for better compatibility
+            http_port = WS_PORT + 1
+            logger.info(f"Starting additional HTTP server on port {http_port} for better compatibility")
+            runner = web.AppRunner(app)
+            await runner.setup()
+            site = web.TCPSite(runner, '0.0.0.0', http_port)
+            await site.start()
+            logger.info(f"HTTP server running at http://0.0.0.0:{http_port}")
+        except ImportError:
+            logger.info("aiohttp not available, skipping additional HTTP server")
+        except Exception as e:
+            logger.error(f"Failed to start HTTP server: {e}")
+        
+        # Keep the server running
         await server.wait_closed()
     except OSError as e:
         if e.errno == 98:  # Address already in use

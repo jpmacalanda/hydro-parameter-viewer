@@ -47,6 +47,17 @@ class WebSocketService {
           } else {
             // If we're already on ws: and it failed, notify error
             this.notifyError(new Error(`Server at ${serverUrl.replace('ws', 'http')} is not reachable. Check if the WebSocket server is running.`));
+            
+            // Try with explicit port 8081
+            if (!serverUrl.includes(':8081')) {
+              const hostPart = serverUrl.split('/')[2]; // Get the host part
+              if (hostPart) {
+                const hostWithoutPort = hostPart.split(':')[0]; // Remove any existing port
+                const newUrl = `ws://${hostWithoutPort}:8081`;
+                console.log(`[WebSocket] Trying with explicit port 8081: ${newUrl}`);
+                setTimeout(() => this.connect(newUrl), 2000);
+              }
+            }
           }
         }
       });
@@ -62,20 +73,62 @@ class WebSocketService {
       
       console.log(`[WebSocket] Checking server availability at ${healthUrl}`);
       
-      // Use no-cors mode for the health check to handle cross-origin requests 
-      const response = await fetch(healthUrl, { 
-        method: 'GET',
-        mode: 'no-cors',
-        cache: 'no-cache',
-        headers: {
-          'Accept': 'text/plain',
-        },
-        // Very short timeout to not block the UI
-        signal: AbortSignal.timeout(3000)
-      });
-      
-      console.log(`[WebSocket] Server health check response:`, response);
-      return true;
+      // Try multiple approaches to check server availability
+      try {
+        // First attempt: Standard fetch with no-cors mode
+        const response = await fetch(healthUrl, { 
+          method: 'GET',
+          mode: 'no-cors',
+          cache: 'no-cache',
+          headers: {
+            'Accept': 'text/plain',
+          },
+          signal: AbortSignal.timeout(3000)
+        });
+        
+        console.log(`[WebSocket] Server health check response:`, response);
+        return true;
+      } catch (error) {
+        console.warn(`[WebSocket] First health check attempt failed:`, error);
+        
+        // Second attempt: Try alternative health check URL
+        try {
+          const altPort = httpUrl.includes(':8081') ? httpUrl.replace(':8081', ':8082') : `${httpUrl}:8082`;
+          const altHealthUrl = `${altPort}/health`;
+          console.log(`[WebSocket] Trying alternative health URL: ${altHealthUrl}`);
+          
+          await fetch(altHealthUrl, { 
+            method: 'GET',
+            mode: 'no-cors',
+            cache: 'no-cache',
+            signal: AbortSignal.timeout(2000)
+          });
+          
+          console.log(`[WebSocket] Alternative health check succeeded`);
+          return true;
+        } catch (altError) {
+          console.warn(`[WebSocket] Alternative health check failed:`, altError);
+          
+          // Last attempt: Try HEAD request to the server root
+          try {
+            const rootUrl = httpUrl.split('/').slice(0, 3).join('/');
+            console.log(`[WebSocket] Trying root URL: ${rootUrl}`);
+            
+            await fetch(rootUrl, { 
+              method: 'HEAD',
+              mode: 'no-cors',
+              cache: 'no-cache',
+              signal: AbortSignal.timeout(2000)
+            });
+            
+            console.log(`[WebSocket] Root URL check succeeded`);
+            return true;
+          } catch (rootError) {
+            console.warn(`[WebSocket] Root URL check failed:`, rootError);
+            return false;
+          }
+        }
+      }
     } catch (error) {
       console.warn(`[WebSocket] Server health check failed:`, error);
       return false;
@@ -95,7 +148,17 @@ class WebSocketService {
       console.log(`[WebSocket] Creating new WebSocket instance at ${new Date().toISOString()}`);
       this.ws = new WebSocket(serverUrl);
       
+      // Set a connection timeout
+      const connectionTimeout = setTimeout(() => {
+        if (!this.isConnected && this.ws) {
+          console.error('[WebSocket] Connection timeout');
+          this.ws.close();
+          this.notifyError(new Error('WebSocket connection timeout'));
+        }
+      }, 10000);
+      
       this.ws.onopen = () => {
+        clearTimeout(connectionTimeout);
         const connectionTime = Date.now() - this.connectionStartTime;
         console.log(`[WebSocket] Connection established successfully after ${connectionTime}ms`);
         this.isConnected = true;
@@ -173,6 +236,7 @@ class WebSocketService {
       };
       
       this.ws.onclose = (event) => {
+        clearTimeout(connectionTimeout);
         const connectionDuration = Date.now() - this.connectionStartTime;
         console.log(`[WebSocket] Connection closed after ${connectionDuration}ms. Code: ${event.code}, Reason: ${event.reason}`);
         this.isConnected = false;
@@ -312,8 +376,7 @@ class WebSocketService {
     const hostname = window.location.hostname;
     console.log(`[WebSocket] Current hostname: ${hostname}`);
     
-    // Important: Always use plain ws:// protocol for this application
-    // since our WebSocket server doesn't handle SSL directly
+    // Always use plain ws:// protocol for this application
     const protocol = 'ws:';
     console.log(`[WebSocket] Using protocol: ${protocol}`);
     
