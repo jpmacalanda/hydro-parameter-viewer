@@ -2,7 +2,7 @@
 #!/usr/bin/env python3
 """
 Serial Monitor - A standalone script that reads data from Arduino serial port 
-and prints to stdout (which appears in Docker logs)
+and logs to a file that the web app can read
 """
 
 import serial
@@ -12,11 +12,19 @@ import sys
 import logging
 from datetime import datetime
 
-# Set up logging
+# Set up logging to both console and file
+LOG_DIR = "/app/logs"
+os.makedirs(LOG_DIR, exist_ok=True)
+LOG_FILE = os.path.join(LOG_DIR, "serial_monitor.log")
+
 logging.basicConfig(
     level=logging.INFO,
     format='%(asctime)s - %(levelname)s - %(message)s',
-    datefmt='%Y-%m-%d %H:%M:%S'
+    datefmt='%Y-%m-%d %H:%M:%S',
+    handlers=[
+        logging.FileHandler(LOG_FILE),
+        logging.StreamHandler()
+    ]
 )
 logger = logging.getLogger("serial_monitor")
 
@@ -30,6 +38,7 @@ RETRY_DELAY = int(os.environ.get('RETRY_DELAY', 3))
 def generate_mock_data():
     """Generate mock data for testing purposes"""
     import random
+    logger.info("Starting mock data generation")
     while True:
         ph = round(random.uniform(5.5, 7.5), 1)
         temp = round(random.uniform(20.0, 28.0), 1)
@@ -37,6 +46,8 @@ def generate_mock_data():
         tds = random.randint(400, 800)
         data_str = f"pH:{ph},temp:{temp},water:{water_level},tds:{tds}"
         logger.info(f"MOCK DATA: {data_str}")
+        # Also log in JSON format for easier parsing
+        logger.info(f"Parsed data: {{\"ph\":{ph},\"temperature\":{temp},\"waterLevel\":\"{water_level.upper()}\",\"tds\":{tds}}}")
         time.sleep(2)
 
 def main():
@@ -92,7 +103,28 @@ def main():
                 if ser.in_waiting > 0:
                     line = ser.readline().decode('utf-8').strip()
                     if line:
+                        # Log the raw data
                         logger.info(f"SERIAL DATA: {line}")
+                        
+                        # Try to parse the data
+                        try:
+                            parts = line.split(',')
+                            data = {}
+                            for part in parts:
+                                if ':' in part:
+                                    key, value = part.split(':')
+                                    data[key.strip().lower()] = value.strip()
+                            
+                            if 'ph' in data and 'temp' in data and 'water' in data and 'tds' in data:
+                                ph = float(data['ph'])
+                                temp = float(data['temp'])
+                                water = data['water'].upper()
+                                tds = int(data['tds'])
+                                
+                                # Log in JSON format for easier parsing
+                                logger.info(f"Parsed data: {{\"ph\":{ph},\"temperature\":{temp},\"waterLevel\":\"{water}\",\"tds\":{tds}}}")
+                        except Exception as e:
+                            logger.error(f"Error parsing data: {e}")
                 else:
                     time.sleep(0.1)
             except KeyboardInterrupt:

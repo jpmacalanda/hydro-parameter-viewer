@@ -10,11 +10,20 @@ RUN apt-get update && apt-get install -y \
 # Install pyserial
 RUN pip install pyserial
 
+# Create logs directory
+RUN mkdir -p /app/logs && chmod 777 /app/logs
+
 # Copy the monitor script
 COPY serial_monitor.py .
 
 # Make sure the script is executable
 RUN chmod +x ./serial_monitor.py
 
+# Create a simple entrypoint script
+RUN echo '#!/bin/sh\n\
+echo "Starting Serial Monitor service..."\n\
+python serial_monitor.py\n\
+' > /app/entrypoint.sh && chmod +x /app/entrypoint.sh
+
 # Run the monitor script
-CMD ["python", "serial_monitor.py"]
+CMD ["/app/entrypoint.sh"]

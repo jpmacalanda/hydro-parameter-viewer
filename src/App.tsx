@@ -30,44 +30,20 @@ function App() {
   });
   const [dataReceived, setDataReceived] = useState(false);
   
-  // Update features state to include useWebSocket
+  // Update features state to remove useWebSocket
   const [features, setFeatures] = useState({
     showStatistics: true,
     showThresholds: true,
     showSystemLogs: true,
-    showSerialMonitor: true,
-    useWebSocket: true // Default to using WebSocket
+    showSerialMonitor: true
   });
   
-  // Check which service is active on initial load
+  // Effect to start/stop log parsing based on connection
   useEffect(() => {
-    const checkActiveService = async () => {
-      try {
-        const { useWebSocket } = await serialService.checkActiveService();
-        setFeatures(prev => ({
-          ...prev,
-          useWebSocket
-        }));
-      } catch (error) {
-        console.error("Error checking active service:", error);
-        // Fallback to WebSocket if we can't determine
-        setFeatures(prev => ({
-          ...prev,
-          useWebSocket: true
-        }));
-      }
-    };
-    
-    checkActiveService();
-  }, []);
-  
-  // Effect to start/stop log parsing based on connection and service selection
-  useEffect(() => {
-    // If connected and not using WebSocket (meaning using Serial Monitor)
-    if (isConnected && !features.useWebSocket) {
+    if (isConnected) {
       // Start log parsing
       toast.info("Reading data from Serial Monitor logs", {
-        description: "WebSocket is disabled, parsing logs for data"
+        description: "Parsing logs for sensor data"
       });
       
       logParserService.onData(handleSensorData);
@@ -82,7 +58,7 @@ function App() {
       // Cleanup
       logParserService.stopPolling();
     };
-  }, [isConnected, features.useWebSocket]);
+  }, [isConnected]);
   
   const handleConnect = () => {
     setIsConnected(true);

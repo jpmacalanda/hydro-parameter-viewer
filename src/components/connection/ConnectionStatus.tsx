@@ -1,29 +1,25 @@
 
 import React from 'react';
-import { Wifi, WifiOff } from 'lucide-react';
 
 interface ConnectionStatusProps {
   isConnected: boolean;
   isError: boolean;
   dataReceived: boolean;
   usingMockData: boolean;
-  usingWebSocket: boolean;
 }
 
 const ConnectionStatus: React.FC<ConnectionStatusProps> = ({
   isConnected,
   isError,
   dataReceived,
-  usingMockData,
-  usingWebSocket
+  usingMockData
 }) => {
   const getConnectionTypeText = () => {
     if (!isConnected) return "Disconnected";
     if (isError) return "Connection Error";
     if (isConnected && !dataReceived) return "Connected (No Data)";
     if (usingMockData) return "Connected (Mock Data)";
-    if (usingWebSocket) return "Connected (WebSocket)";
-    return "Connected (Direct Serial)";
+    return "Connected (Serial Monitor)";
   };
   
   const getConnectionTypeColor = () => {
@@ -31,7 +27,6 @@ const ConnectionStatus: React.FC<ConnectionStatusProps> = ({
     if (isError) return "bg-red-500";
     if (isConnected && !dataReceived) return "bg-yellow-500";
     if (usingMockData) return "bg-yellow-500";
-    if (usingWebSocket) return "bg-blue-500";
     return "bg-green-500";
   };
 
@@ -42,14 +37,6 @@ const ConnectionStatus: React.FC<ConnectionStatusProps> = ({
       ></div>
       <span className="text-sm text-gray-600 flex items-center">
         {getConnectionTypeText()}
-        {isConnected && !isError && (
-          <span className="ml-2">
-            {usingWebSocket ? 
-              <Wifi className="h-3 w-3 text-blue-500" /> : 
-              <WifiOff className="h-3 w-3 text-gray-500" />
-            }
-          </span>
-        )}
       </span>
     </div>
   );

@@ -9,6 +9,7 @@ class LogParserService {
   private polling: boolean = false;
   private pollingInterval: ReturnType<typeof setInterval> | null = null;
   private lastProcessedTimestamp: string | null = null;
+  private lastReceivedData: SerialData | null = null;
 
   /**
    * Start polling for logs and parse them for sensor data
@@ -20,13 +21,15 @@ class LogParserService {
     
     this.polling = true;
     
-    // Poll every 3 seconds
+    // Poll every 2 seconds
     this.pollingInterval = setInterval(() => {
       this.fetchAndParseLogs();
-    }, 3000);
+    }, 2000);
     
     // Do an initial fetch
     this.fetchAndParseLogs();
+    
+    console.log("Started polling serial monitor logs for data");
   }
 
   /**
@@ -39,6 +42,8 @@ class LogParserService {
       clearInterval(this.pollingInterval);
       this.pollingInterval = null;
     }
+    
+    console.log("Stopped polling serial monitor logs");
   }
 
   /**
@@ -46,7 +51,7 @@ class LogParserService {
    */
   private async fetchAndParseLogs(): Promise<void> {
     try {
-      // In a production environment, you would fetch logs from an API endpoint
+      // In a production environment, fetch logs from an API endpoint that serves serial monitor logs
       // For this demo, we'll generate some mock logs
       const logs = this.generateMockSerialLogs();
       
@@ -57,6 +62,20 @@ class LogParserService {
       if (sensorData.length > 0) {
         // Get the most recent reading
         const latestData = sensorData[sensorData.length - 1];
+        
+        // Skip if it's the same data we've already processed
+        if (this.lastReceivedData && 
+            this.lastReceivedData.ph === latestData.ph &&
+            this.lastReceivedData.temperature === latestData.temperature &&
+            this.lastReceivedData.waterLevel === latestData.waterLevel &&
+            this.lastReceivedData.tds === latestData.tds) {
+          return;
+        }
+        
+        // Store this data as the last received
+        this.lastReceivedData = latestData;
+        
+        // Update listeners
         this.notifyCallbacks(latestData);
       }
     } catch (error) {
@@ -92,7 +111,7 @@ class LogParserService {
             this.lastProcessedTimestamp = timestamp;
           }
           
-          // Extract the data part between the {} brackets
+          // Extract the data part between the {} brackets or parse the raw format
           const dataMatch = line.match(/\{([^}]+)\}/);
           if (dataMatch) {
             const dataString = `{${dataMatch[1]}}`;
