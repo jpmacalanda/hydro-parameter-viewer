@@ -55,6 +55,9 @@ const TemperatureDisplay: React.FC<TemperatureDisplayProps> = ({
       case "normal": return "Optimal";
     }
   };
+
+  // Check if the temperature is in the optimal range
+  const isOptimal = status === "normal";
   
   return (
     <Card className="shadow-md">
@@ -70,9 +73,15 @@ const TemperatureDisplay: React.FC<TemperatureDisplayProps> = ({
       <CardContent>
         <div className="flex justify-between items-center mb-2">
           <span className="text-3xl font-bold">{value === 0 ? "-" : `${value.toFixed(1)}°C`}</span>
-          <span className={`px-2 py-1 rounded-full text-xs font-medium text-white bg-${getColor().replace('text-', '')}`}>
-            {statusText()}
-          </span>
+          {isOptimal ? (
+            <span className="px-2 py-1 rounded-full text-xs font-medium text-white bg-green-500">
+              Optimal
+            </span>
+          ) : (
+            <span className={`px-2 py-1 rounded-full text-xs font-medium text-white ${getBgColor()}`}>
+              {statusText()}
+            </span>
+          )}
         </div>
         
         <div className="relative pt-1">

@@ -52,6 +52,9 @@ const WaterLevelDisplay: React.FC<WaterLevelDisplayProps> = ({ level }) => {
       case "high": return "h-3/4";
     }
   };
+
+  // Check if the level is optimal (high)
+  const isOptimal = level === 'high';
   
   return (
     <Card className="shadow-md">
@@ -67,9 +70,15 @@ const WaterLevelDisplay: React.FC<WaterLevelDisplayProps> = ({ level }) => {
       <CardContent>
         <div className="flex justify-between items-center mb-4">
           <span className="text-2xl font-bold">{isDataAvailable ? level : "-"}</span>
-          <span className={`px-2 py-1 rounded-full text-xs font-medium text-white bg-${getColor()}`}>
-            {statusText()}
-          </span>
+          {isOptimal ? (
+            <span className="px-2 py-1 rounded-full text-xs font-medium text-white bg-green-500">
+              Optimal
+            </span>
+          ) : (
+            <span className={`px-2 py-1 rounded-full text-xs font-medium text-white bg-${getColor()}`}>
+              {statusText()}
+            </span>
+          )}
         </div>
         
         <div className="flex gap-4 items-center">

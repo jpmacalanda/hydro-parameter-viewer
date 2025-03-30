@@ -55,6 +55,9 @@ const TDSDisplay: React.FC<TDSDisplayProps> = ({
       case "normal": return "Optimal";
     }
   };
+
+  // Check if TDS is in the optimal range
+  const isOptimal = status === "normal";
   
   return (
     <Card className="shadow-md">
@@ -70,9 +73,15 @@ const TDSDisplay: React.FC<TDSDisplayProps> = ({
       <CardContent>
         <div className="flex justify-between items-center mb-2">
           <span className="text-3xl font-bold">{value === 0 ? "-" : `${value} PPM`}</span>
-          <span className={`px-2 py-1 rounded-full text-xs font-medium text-white bg-${getColor()}`}>
-            {statusText()}
-          </span>
+          {isOptimal ? (
+            <span className="px-2 py-1 rounded-full text-xs font-medium text-white bg-green-500">
+              Optimal
+            </span>
+          ) : (
+            <span className={`px-2 py-1 rounded-full text-xs font-medium text-white bg-${getColor()}`}>
+              {statusText()}
+            </span>
+          )}
         </div>
         
         <div className="relative pt-1">
