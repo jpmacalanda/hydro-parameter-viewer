@@ -1,4 +1,3 @@
-
 import React, { useState } from 'react';
 import { Card, CardContent, CardHeader, CardTitle, CardDescription } from "@/components/ui/card";
 import { Tabs, TabsContent, TabsList, TabsTrigger } from "@/components/ui/tabs";
@@ -7,7 +6,7 @@ import { Button } from "@/components/ui/button";
 import { Label } from "@/components/ui/label";
 import { Slider } from "@/components/ui/slider";
 import { toast } from "sonner";
-import { Beaker, Flask, ArrowRight, RotateCcw } from "lucide-react";
+import { Beaker, ArrowRight, RotateCcw } from "lucide-react";
 
 interface CalibrationPanelProps {
   onCalibrate: (calibrationData: {
@@ -182,7 +181,7 @@ const CalibrationPanel: React.FC<CalibrationPanelProps> = ({
               {/* TDS Calibration Section */}
               <div className="p-4 border rounded-lg space-y-4">
                 <h3 className="text-lg font-medium flex items-center gap-2">
-                  <Flask className="h-5 w-5 text-green-600" />
+                  <Beaker className="h-5 w-5 text-green-600" />
                   TDS Calibration
                 </h3>
                 

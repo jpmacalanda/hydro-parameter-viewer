@@ -2,7 +2,7 @@
 import React from 'react';
 import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
 import { Badge } from "@/components/ui/badge";
-import { Timer, Flask, Ruler } from "lucide-react";
+import { Timer, Beaker, Ruler } from "lucide-react";
 
 interface SystemInfoPanelProps {
   connected: boolean;
@@ -96,7 +96,7 @@ const SystemInfoPanel: React.FC<SystemInfoPanelProps> = ({
             {/* TDS Calibration */}
             <div className="p-2 border rounded-lg">
               <div className="flex items-center gap-2">
-                <Flask size={16} className="text-green-600" />
+                <Beaker size={16} className="text-green-600" />
                 <h3 className="font-medium text-sm">TDS Calibration</h3>
               </div>
               <p className="text-sm mt-1">
