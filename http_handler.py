@@ -69,7 +69,8 @@ async def http_handler(path, request_headers):
             "status": "running",
             "mockData": True,  # This will be updated in the main app
             "connectedClients": len(connected_clients),
-            "time": datetime.now().isoformat()
+            "time": datetime.now().isoformat(),
+            "secure": True
         }
         
         json_body = json.dumps(data).encode('utf-8')
@@ -87,7 +88,7 @@ async def http_handler(path, request_headers):
         "----------------------------------------\n"
         "This is the WebSocket server for the Hydroponics Monitoring System.\n"
         "For the web interface, please access the web application.\n"
-        "For WebSocket connections, connect to ws://hostname:8081\n"
+        "For WebSocket connections, connect to wss://hostname:8081\n"
         "Available endpoints:\n"
         "- /health        - Server health check\n"
         "- /api/status    - Server status in JSON format\n"

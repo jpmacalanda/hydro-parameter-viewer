@@ -1,3 +1,4 @@
+
 type DataCallback = (data: {
   ph: number;
   temperature: number;
@@ -359,8 +360,9 @@ class WebSocketService {
     const hostname = window.location.hostname;
     console.log(`[WebSocket] Current hostname: ${hostname}`);
     
-    // Always use plain ws:// protocol for this application
-    const protocol = 'ws:';
+    // Always use secure wss:// protocol unless local development
+    const isLocalhost = hostname === 'localhost' || hostname === '127.0.0.1';
+    const protocol = isLocalhost ? 'ws:' : 'wss:';
     console.log(`[WebSocket] Using protocol: ${protocol}`);
     
     // Check if we're accessing from Raspberry Pi itself

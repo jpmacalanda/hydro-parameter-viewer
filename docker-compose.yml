@@ -39,7 +39,7 @@ services:
       - ./ssl:/etc/nginx/ssl
       - ./logs:/app/logs
     environment:
-      - USE_SSL=false  # Set to false to avoid SSL issues during debugging
+      - USE_SSL=true  # Set to true to use SSL
       - MOCK_DATA=${MOCK_DATA:-true}  # Set to true to use mock data when device isn't available
       - LOG_LEVEL=DEBUG  # Set log level to DEBUG for more detailed logs
       - SERIAL_PORT=/dev/ttyUSB0  # Set the serial port for the Arduino
@@ -49,7 +49,7 @@ services:
       - hydroponics-network
     restart: unless-stopped
     healthcheck:
-      test: ["CMD", "curl", "-f", "http://localhost:8081/health"]
+      test: ["CMD", "curl", "-k", "https://localhost:8081/health"]
       interval: 30s
       timeout: 10s
       retries: 3

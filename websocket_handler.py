@@ -32,6 +32,16 @@ async def websocket_handler(websocket, path):
         headers_str = ", ".join([f"{k}: {v}" for k, v in websocket.request_headers.items()])
         logger.debug(f"Client request headers: {headers_str}")
     
+    # Check if client is using secure connection
+    secure = False
+    if hasattr(websocket, 'request_headers'):
+        if websocket.request_headers.get('X-Forwarded-Proto') == 'https':
+            secure = True
+            logger.info(f"Client {client_ip} connected via secure proxy (HTTPS)")
+        elif websocket.request_headers.get('Origin', '').startswith('https:'):
+            secure = True
+            logger.info(f"Client {client_ip} connected from secure origin (HTTPS)")
+    
     connected_clients.add(websocket)
     try:
         # Send initial success message

@@ -1,4 +1,3 @@
-
 import React, { useState, useEffect } from 'react';
 import { Button } from "@/components/ui/button";
 import serialService from "@/services/SerialService";
@@ -79,7 +78,6 @@ const ConnectionControl: React.FC<ConnectionControlProps> = ({
         setSelectedPortId(ports[0].id);
       }
       
-      // Check port status - Call with no arguments
       await checkPortUsage();
     } catch (error) {
       console.error("Error fetching ports:", error);
@@ -93,14 +91,11 @@ const ConnectionControl: React.FC<ConnectionControlProps> = ({
   
   const checkPortUsage = async (): Promise<void> => {
     try {
-      // This would require a backend API endpoint to check port usage
-      // Since we're using WebSocket, we can potentially add a custom command
       if (isWebSerialSupported && !isSecurityRestricted && selectedPortId) {
         const selectedPort = availablePorts.find(p => p.id === selectedPortId);
         if (selectedPort) {
           const portName = selectedPort.displayName;
           
-          // Check if port can be opened (if it's already in use, this will fail)
           try {
             await navigator.serial.requestPort({filters: []});
             setPortStatus({
@@ -246,7 +241,6 @@ const ConnectionControl: React.FC<ConnectionControlProps> = ({
                   value={selectedPortId}
                   onValueChange={(value) => {
                     setSelectedPortId(value);
-                    // Fix: Call with no arguments
                     setTimeout(() => checkPortUsage(), 100);
                   }}
                   disabled={isConnected || loadingPorts}
