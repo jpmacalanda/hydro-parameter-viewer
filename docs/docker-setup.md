@@ -49,7 +49,7 @@ docker build -f Dockerfile.server -t hydroponics-server .
 
 2. **Run the container**:
 ```bash
-docker run -d --device=/dev/ttyUSB0 -p 8081:8081 -v $(pwd)/ssl:/etc/nginx/ssl -e USE_SSL=true --name hydroponics-ws hydroponics-server
+docker run -d --device=/dev/ttyUSB0 -p 8081:8081 -v $(pwd)/ssl:/etc/nginx/ssl -e USE_SSL=false --name hydroponics-ws hydroponics-server
 ```
 
 ## Using Docker Compose
@@ -67,6 +67,12 @@ docker-compose logs
 3. **Stop services**:
 ```bash
 docker-compose down
+```
+
+4. **Rebuild and restart all services** (after making changes):
+```bash
+docker-compose down
+docker-compose up -d --build
 ```
 
 ## Troubleshooting on Raspberry Pi
@@ -106,6 +112,41 @@ docker logs hydroponics-ws -f
 docker logs hydroponics-app -f
 ```
 
+### Connection Refused Error
+
+If you see "Connection Refused" errors when accessing your Raspberry Pi:
+
+1. **Check if containers are running**:
+```bash
+docker ps
+```
+
+2. **Verify NGINX is listening on the correct ports**:
+```bash
+docker exec hydroponics-app netstat -tulpn | grep nginx
+```
+
+3. **Check if ports are open and accessible**:
+```bash
+sudo netstat -tulpn | grep -E '80|443|8081'
+```
+
+4. **Restart docker service and containers**:
+```bash
+sudo systemctl restart docker
+docker-compose down
+docker-compose up -d
+```
+
+5. **Check for firewall issues**:
+```bash
+sudo iptables -L
+# If you have UFW enabled, allow the ports
+sudo ufw allow 80/tcp
+sudo ufw allow 443/tcp
+sudo ufw allow 8081/tcp
+```
+
 ### If still having issues:
 
 1. **Restart the containers**:
@@ -122,4 +163,9 @@ curl -v http://localhost:8081
 3. **Verify USB device is mounted in container**:
 ```bash
 docker exec -it hydroponics-ws ls -l /dev/ttyUSB0
+```
+
+4. **Check container logs for any error messages**:
+```bash
+docker-compose logs --tail=100
 ```

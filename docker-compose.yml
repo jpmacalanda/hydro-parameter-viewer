@@ -13,6 +13,7 @@ services:
       - hydroponics-network
     depends_on:
       - websocket
+    restart: unless-stopped
 
   websocket:
     build:
@@ -25,10 +26,11 @@ services:
     volumes:
       - ./ssl:/etc/nginx/ssl
     environment:
-      - USE_SSL=true
+      - USE_SSL=false  # Use non-SSL for WebSocket on Raspberry Pi
       - MOCK_DATA=false  # Disable mock data since real Arduino is connected
     networks:
       - hydroponics-network
+    restart: unless-stopped
 
 networks:
   hydroponics-network:
