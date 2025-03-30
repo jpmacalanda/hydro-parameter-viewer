@@ -1,12 +1,13 @@
+
 import React, { useState, useEffect } from 'react';
-import PHDisplay from './dashboard/PHDisplay';
-import TemperatureDisplay from './dashboard/TemperatureDisplay';
-import WaterLevelDisplay from './dashboard/WaterLevelDisplay';
-import TDSDisplay from './dashboard/TDSDisplay';
+import PHDisplay from './PHDisplay';
+import TemperatureDisplay from './TemperatureDisplay';
+import WaterLevelDisplay from './WaterLevelDisplay';
+import TDSDisplay from './TDSDisplay';
 import MonitoringPanel from './dashboard/MonitoringPanel';
 import SystemInfoPanel from './dashboard/SystemInfoPanel';
-import ThresholdSettings from './dashboard/ThresholdSettings';
-import StatisticsView from './dashboard/StatisticsView';
+import ThresholdSettings from './ThresholdSettings';
+import StatisticsView from './StatisticsView';
 import SerialMonitor from './SerialMonitor';
 import ConnectionControl from './ConnectionControl';
 import { Tabs, TabsContent, TabsList, TabsTrigger } from "@/components/ui/tabs";
@@ -31,6 +32,23 @@ const Dashboard: React.FC = () => {
     tdsMin: 600,
     tdsMax: 700,
   });
+  const [showGraphs, setShowGraphs] = useState(false);
+  
+  // Generate sample data for historical graphs
+  const [phHistory, setPhHistory] = useState(Array.from({length: 24}, (_, i) => ({
+    time: `${i}:00`,
+    value: 6.5 + Math.random() * 1.0
+  })));
+  
+  const [tempHistory, setTempHistory] = useState(Array.from({length: 24}, (_, i) => ({
+    time: `${i}:00`,
+    value: 22 + Math.random() * 6.0
+  })));
+  
+  const [tdsHistory, setTdsHistory] = useState(Array.from({length: 24}, (_, i) => ({
+    time: `${i}:00`,
+    value: 600 + Math.random() * 150
+  })));
 
   useEffect(() => {
     // Subscribe to data updates from the SerialService
@@ -51,23 +69,39 @@ const Dashboard: React.FC = () => {
       // Clean up subscriptions
     };
   }, []);
+  
+  const handleConnect = () => {
+    // Connect functionality would be implemented here
+    setConnected(true);
+  };
 
   return (
     <div className="container mx-auto px-4 py-8">
       <h1 className="text-3xl font-bold mb-6">Hydroponics Monitoring Dashboard</h1>
       
-      <ConnectionControl />
+      <ConnectionControl 
+        onConnect={handleConnect} 
+        isConnected={connected} 
+      />
 
       {/* Display current readings */}
       <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-4 gap-4 mb-8">
-        <PHDisplay ph={sensorData.ph} thresholds={thresholds} />
-        <TemperatureDisplay temperature={sensorData.temperature} thresholds={thresholds} />
-        <WaterLevelDisplay waterLevel={sensorData.waterLevel} />
-        <TDSDisplay tds={sensorData.tds} thresholds={thresholds} />
+        <PHDisplay value={sensorData.ph} optimalMin={thresholds.phMin} optimalMax={thresholds.phMax} />
+        <TemperatureDisplay value={sensorData.temperature} optimalMin={thresholds.temperatureMin} optimalMax={thresholds.temperatureMax} />
+        <WaterLevelDisplay level={sensorData.waterLevel} />
+        <TDSDisplay value={sensorData.tds} optimalMin={thresholds.tdsMin} optimalMax={thresholds.tdsMax} />
       </div>
 
       {/* Monitoring panel with history chart */}
-      <MonitoringPanel />
+      <MonitoringPanel 
+        params={sensorData}
+        phHistory={phHistory}
+        tempHistory={tempHistory}
+        tdsHistory={tdsHistory}
+        showGraphs={showGraphs}
+        setShowGraphs={setShowGraphs}
+        thresholds={thresholds}
+      />
       
       {/* System information */}
       <SystemInfoPanel 
