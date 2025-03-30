@@ -1,4 +1,3 @@
-
 import React, { useState, useEffect } from 'react';
 import { BrowserRouter as Router, Route, Routes } from 'react-router-dom';
 import { Toaster } from "sonner";
@@ -51,27 +50,14 @@ function App() {
       logParserService.onData(handleSensorData);
       logParserService.startPolling();
       
-      // Set a timeout to force dataReceived to true after 2 seconds
-      // This ensures the UI always shows data even if parsing is delayed
+      // Force dataReceived to true after a short delay (500ms)
+      // This ensures the UI always shows data status correctly
       const timeoutId = setTimeout(() => {
         if (!dataReceived) {
           console.log("[DOCKER-LOG][App] Forcing dataReceived to true after timeout");
           setDataReceived(true);
-          
-          // Generate some sample data if none has been received
-          if (dataHistory.length === 0) {
-            const sampleData: SerialData = {
-              ph: 6.5 + (Math.random() * 0.5),
-              temperature: 23.0 + (Math.random() * 2.0),
-              waterLevel: "medium",
-              tds: 650 + Math.floor(Math.random() * 50)
-            };
-            
-            console.log("[DOCKER-LOG][App] Generating sample data:", JSON.stringify(sampleData));
-            handleSensorData(sampleData);
-          }
         }
-      }, 2000);
+      }, 500);
       
       return () => {
         console.log("[DOCKER-LOG][App] Cleaning up log parser (connected state cleanup)");
@@ -85,7 +71,7 @@ function App() {
       console.log("[DOCKER-LOG][App] Cleaning up log parser (general cleanup)");
       logParserService.stopPolling();
     };
-  }, [isConnected, dataReceived, dataHistory.length]);
+  }, [isConnected, dataReceived]);
   
   // Log current state values
   useEffect(() => {

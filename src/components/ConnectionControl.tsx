@@ -75,6 +75,11 @@ const ConnectionControl: React.FC<ConnectionControlProps> = ({
       if (success) {
         console.log("[DOCKER-LOG][ConnectionControl] Calling onConnect callback");
         onConnect();
+        
+        // Show a connection toast
+        toast.success("Connected successfully", {
+          description: "Reading real data from serial connection"
+        });
       } else {
         console.log("[DOCKER-LOG][ConnectionControl] Connection failed");
         setIsError(true);
@@ -124,7 +129,7 @@ const ConnectionControl: React.FC<ConnectionControlProps> = ({
               isConnected={isConnected}
               isError={isError}
               dataReceived={dataReceived}
-              usingMockData={false} // Always false - never using mock data
+              usingMockData={false} // Never using mock data - only using real data
             />
           </div>
         </div>

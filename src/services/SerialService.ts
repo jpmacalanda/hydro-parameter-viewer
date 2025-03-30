@@ -32,11 +32,6 @@ class SerialService {
   get connected(): boolean {
     return this.isConnected;
   }
-  
-  // Check if using mock data
-  get isMockData(): boolean {
-    return false; // Never using mock data
-  }
 
   // Connect to the system - this now just means start using log parsing
   async connect(): Promise<boolean> {
