@@ -14,7 +14,7 @@ RUN pip install pyserial
 COPY serial_monitor.py .
 
 # Make sure the script is executable
-RUN chmod +x /serial_monitor.py
+RUN chmod +x ./serial_monitor.py
 
 # Run the monitor script
 CMD ["python", "serial_monitor.py"]
