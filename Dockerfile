@@ -22,7 +22,9 @@ RUN mkdir -p /etc/nginx/ssl && \
 
 # Add startup script to check for certificates
 COPY docker-entrypoint.sh /docker-entrypoint.sh
-RUN chmod +x /docker-entrypoint.sh
+# Ensure the script is executable and has Unix line endings
+RUN chmod +x /docker-entrypoint.sh && \
+    sed -i 's/\r$//' /docker-entrypoint.sh
 
 EXPOSE 80 443
 ENTRYPOINT ["/docker-entrypoint.sh"]
