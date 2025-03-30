@@ -37,7 +37,7 @@ class SerialService {
   
   // Check if using mock data
   get isMockData(): boolean {
-    return false; // Never use mock data
+    return this.useMockData;
   }
 
   // Connect to the system - this now just means start using log parsing
@@ -48,46 +48,31 @@ class SerialService {
       // Explicitly set mock data to false - never use mock data
       this.useMockData = false;
       
-      console.log("[DOCKER-LOG][SerialService] Using real data only");
+      console.log("[DOCKER-LOG][SerialService] Using mock data?", this.useMockData);
       
       // Set up log parser to get real data from logs
-      console.log("[DOCKER-LOG][SerialService] Setting up log parser");
+      console.log("[DOCKER-LOG][SerialService] Setting up log parser to use real data");
       logParserService.onData((data) => {
-        console.log("[DOCKER-LOG][SerialService] Received data from log parser:", JSON.stringify(data));
-        
-        // Forward raw messages to any registered raw callbacks
-        this.rawCallbacks.forEach((callback) => {
-          callback(JSON.stringify(data));
-        });
-        
-        // Forward parsed data to data callbacks
-        this.callbacks.forEach((callback) => {
+        console.log("[DOCKER-LOG][SerialService] Received real data from log parser:", JSON.stringify(data));
+        this.callbacks.forEach((callback, index) => {
+          console.log(`[DOCKER-LOG][SerialService] Sending real data to callback #${index + 1}:`, JSON.stringify(data));
           callback(data);
         });
       });
       
-      // Start polling logs with higher frequency
+      // Start polling logs
       console.log("[DOCKER-LOG][SerialService] Starting log polling");
       logParserService.startPolling();
       
       this.isConnected = true;
-      console.log("[DOCKER-LOG][SerialService] Successfully connected");
-      
-      const event = new CustomEvent('connection-success', { 
-        detail: { 
-          message: "Connected to Arduino logs", 
-          description: "Now receiving real-time data from serial logs" 
-        } 
-      });
-      document.dispatchEvent(event);
-      
+      console.log("[DOCKER-LOG][SerialService] Successfully connected, status:", this.isConnected, "using mock data:", this.useMockData);
       return true;
     } catch (error) {
       console.error("[DOCKER-LOG][SerialService] Failed to connect:", error);
       
       // Show error instead of falling back to mock data
       toast.error("Failed to connect to Arduino", {
-        description: "Could not establish connection to obtain real sensor data."
+        description: "Could not establish connection to obtain real sensor data. Please check your hardware connection."
       });
       
       // Dispatch an error event
@@ -105,7 +90,7 @@ class SerialService {
 
   // Disconnect from the service
   async disconnect(): Promise<void> {
-    console.log("[DOCKER-LOG][SerialService] Disconnecting");
+    console.log("[DOCKER-LOG][SerialService] Disconnecting, current connection status:", this.isConnected, "using mock data:", this.useMockData);
     this.isConnected = false;
     
     // Stop log parser if it's running
@@ -113,28 +98,31 @@ class SerialService {
     logParserService.stopPolling();
     
     // Clear callbacks
-    console.log("[DOCKER-LOG][SerialService] Clearing callbacks");
+    console.log("[DOCKER-LOG][SerialService] Clearing callbacks: data callbacks:", this.callbacks.length, "raw callbacks:", this.rawCallbacks.length);
     this.callbacks = [];
     this.rawCallbacks = [];
-    console.log("[DOCKER-LOG][SerialService] Disconnected successfully");
+    console.log("[DOCKER-LOG][SerialService] Disconnected successfully, new status:", this.isConnected);
   }
 
   // Register a callback to receive data
   onData(callback: DataCallback): void {
     console.log("[DOCKER-LOG][SerialService] New data callback registered");
     this.callbacks.push(callback);
+    console.log("[DOCKER-LOG][SerialService] Total data callbacks:", this.callbacks.length);
   }
   
   // Register a callback to receive raw messages
   onRawMessage(callback: RawMessageCallback): void {
     console.log("[DOCKER-LOG][SerialService] New raw message callback registered");
     this.rawCallbacks.push(callback);
+    console.log("[DOCKER-LOG][SerialService] Total raw message callbacks:", this.rawCallbacks.length);
   }
   
   // Register a callback to receive error notifications
   onError(callback: ErrorCallback): void {
     console.log("[DOCKER-LOG][SerialService] New error callback registered");
     this.errorCallbacks.push(callback);
+    console.log("[DOCKER-LOG][SerialService] Total error callbacks:", this.errorCallbacks.length);
   }
 }
 

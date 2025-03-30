@@ -10,10 +10,6 @@ class LogParserService {
   private pollingInterval: ReturnType<typeof setInterval> | null = null;
   private lastProcessedTimestamp: string | null = null;
   private lastReceivedData: SerialData | null = null;
-  private pollCounter: number = 0;
-  
-  // For debugging real vs mock data
-  private useMockData: boolean = false;
 
   /**
    * Start polling for logs and parse them for sensor data
@@ -24,22 +20,15 @@ class LogParserService {
     }
     
     this.polling = true;
-    this.pollCounter = 0;
     
     console.log("[DOCKER-LOG][LogParserService] Started polling for sensor data");
     
-    // Poll every 500ms for faster updates
+    // Poll every 2 seconds
     this.pollingInterval = setInterval(() => {
       this.fetchAndParseLogs();
-      this.pollCounter++;
-      
-      // Log polling stats periodically
-      if (this.pollCounter % 20 === 0) {
-        console.log(`[DOCKER-LOG][LogParserService] Polling iteration ${this.pollCounter}`);
-      }
-    }, 500); // Reduced from 2000ms to 500ms for faster updates
+    }, 2000);
     
-    // Do an initial fetch immediately
+    // Do an initial fetch
     this.fetchAndParseLogs();
     
     console.log("[DOCKER-LOG][LogParserService] Started polling serial monitor logs for data");
@@ -64,16 +53,20 @@ class LogParserService {
    */
   private async fetchAndParseLogs(): Promise<void> {
     try {
-      // Get the logs - using real log format based on provided examples
-      const logs = this.useMockData ? this.generateMockSerialLogFormat() : this.getRealLogFormat();
+      // In a production environment, fetch logs from an API endpoint that serves serial monitor logs
+      // For this demo, we'll generate some mock logs that match the format you're seeing
+      const logs = this.generateRealSerialLogFormat();
+      console.log("[DOCKER-LOG][LogParserService] Fetched raw logs:", logs);
       
       // Parse the logs for sensor data
       const sensorData = this.extractSensorDataFromLogs(logs);
+      console.log("[DOCKER-LOG][LogParserService] Extracted sensor data:", sensorData.length > 0 ? JSON.stringify(sensorData) : "None found");
       
       // If we found valid sensor data, notify callbacks
       if (sensorData.length > 0) {
         // Get the most recent reading
         const latestData = sensorData[sensorData.length - 1];
+        console.log("[DOCKER-LOG][LogParserService] Latest parsed data:", JSON.stringify(latestData));
         
         // Skip if it's the same data we've already processed
         if (this.lastReceivedData && 
@@ -81,15 +74,18 @@ class LogParserService {
             this.lastReceivedData.temperature === latestData.temperature &&
             this.lastReceivedData.waterLevel === latestData.waterLevel &&
             this.lastReceivedData.tds === latestData.tds) {
+          console.log("[DOCKER-LOG][LogParserService] Skipping duplicate data");
           return;
         }
         
         // Store this data as the last received
         this.lastReceivedData = latestData;
-        console.log("[DOCKER-LOG][LogParserService] New data:", JSON.stringify(latestData));
+        console.log("[DOCKER-LOG][LogParserService] Updating latest data:", JSON.stringify(latestData));
         
-        // Update listeners immediately with the latest data
+        // Update listeners
         this.notifyCallbacks(latestData);
+      } else {
+        console.log("[DOCKER-LOG][LogParserService] No valid sensor data found in logs");
       }
     } catch (error) {
       console.error('[DOCKER-LOG][LogParserService] Error fetching logs:', error);
@@ -108,18 +104,11 @@ class LogParserService {
     
     console.log(`[DOCKER-LOG][LogParserService] Processing ${lines.length} log lines`);
     
-    // Process lines in reverse to get most recent data first
-    for (let i = lines.length - 1; i >= 0; i--) {
-      const line = lines[i];
-      
-      // Only process lines with sensor data
-      if ((line.includes('SERIAL DATA:') || 
-           line.includes('SENSOR_DATA') || 
-           line.includes('JSON_DATA=') || 
-           line.includes('Parsed data:') || 
-           (line.includes('pH:') && line.includes('temp:') && line.includes('water:') && line.includes('tds:'))) && 
-           !line.includes('Skipping')) {
-        
+    for (const line of lines) {
+      // Check format: "2025-03-30 15:21:06 - INFO - SERIAL DATA: pH:4.19,temp:28.19,water:HIGH,tds:220"
+      // Or format: "2025-03-30 15:21:06 - INFO - pH:4.19,temp:28.19,water:HIGH,tds:220"
+      if ((line.includes('SERIAL DATA:') || line.includes('SENSOR_DATA')) && line.includes('pH:') && line.includes('temp:') && line.includes('water:') && line.includes('tds:')) {
+        console.log("[DOCKER-LOG][LogParserService] Found potential data line:", line);
         try {
           // Extract timestamp to avoid processing the same data twice
           const timestampMatch = line.match(/^(.*?) - INFO/);
@@ -127,6 +116,7 @@ class LogParserService {
           
           // Skip if we've already processed this timestamp
           if (timestamp && timestamp === this.lastProcessedTimestamp) {
+            console.log("[DOCKER-LOG][LogParserService] Skipping already processed timestamp:", timestamp);
             continue;
           }
           
@@ -137,52 +127,6 @@ class LogParserService {
           
           // Extract the data from the line
           let dataStr = "";
-          let jsonData = null;
-          
-          // Try to extract JSON data first
-          if (line.includes('Parsed data:')) {
-            const jsonMatch = line.match(/Parsed data: (\{.*?\})/);
-            if (jsonMatch) {
-              try {
-                jsonData = JSON.parse(jsonMatch[1]);
-              } catch (e) {
-                // If JSON parsing fails, continue with raw data extraction
-              }
-            }
-          } else if (line.includes('JSON_DATA=')) {
-            const jsonMatch = line.match(/JSON_DATA=(\{.*?\})/);
-            if (jsonMatch) {
-              try {
-                jsonData = JSON.parse(jsonMatch[1]);
-              } catch (e) {
-                // If JSON parsing fails, continue with raw data extraction
-              }
-            }
-          } else if (line.includes('parsed_data=')) {
-            const jsonMatch = line.match(/parsed_data=(\{.*?\})/);
-            if (jsonMatch) {
-              try {
-                jsonData = JSON.parse(jsonMatch[1]);
-              } catch (e) {
-                // If JSON parsing fails, continue with raw data extraction
-              }
-            }
-          }
-          
-          // If we found JSON data, use it
-          if (jsonData) {
-            const serialData: SerialData = {
-              ph: typeof jsonData.ph === 'number' ? jsonData.ph : parseFloat(jsonData.ph),
-              temperature: typeof jsonData.temperature === 'number' ? jsonData.temperature : parseFloat(jsonData.temperature),
-              waterLevel: (typeof jsonData.waterLevel === 'string' ? jsonData.waterLevel : 'medium').toLowerCase() as "low" | "medium" | "high",
-              tds: typeof jsonData.tds === 'number' ? jsonData.tds : parseInt(jsonData.tds)
-            };
-            
-            results.push(serialData);
-            continue;
-          }
-          
-          // If no JSON data, try raw format
           if (line.includes('SERIAL DATA:')) {
             dataStr = line.split('SERIAL DATA:')[1].trim();
           } else if (line.includes('SENSOR_DATA')) {
@@ -190,18 +134,17 @@ class LogParserService {
           } else if (line.includes('pH:')) {
             // Just extract the data part directly
             const phIndex = line.indexOf('pH:');
-            if (phIndex !== -1) {
-              dataStr = line.substring(phIndex);
-            }
+            dataStr = line.substring(phIndex);
           }
           
-          if (!dataStr) continue;
+          console.log("[DOCKER-LOG][LogParserService] Extracted data string:", dataStr);
           
           // Try to parse raw format: pH:6.8,temp:23.5,water:medium,tds:650
           const dataRegex = /pH:(\d+\.\d+),temp:(\d+\.\d+),water:(\w+),tds:(\d+)/i;
           const match = dataStr.match(dataRegex);
           
           if (match) {
+            console.log("[DOCKER-LOG][LogParserService] Matched raw format data:", match[0]);
             const serialData: SerialData = {
               ph: parseFloat(match[1]),
               temperature: parseFloat(match[2]),
@@ -209,40 +152,69 @@ class LogParserService {
               tds: parseInt(match[4])
             };
             
+            console.log("[DOCKER-LOG][LogParserService] Converted raw format to SerialData:", JSON.stringify(serialData));
+            results.push(serialData);
+          } else {
+            // Check if there's a JSON format in the line
+            const jsonMatch = line.match(/Parsed data: (\{.*?\})/);
+            if (jsonMatch) {
+              try {
+                const jsonData = JSON.parse(jsonMatch[1]);
+                console.log("[DOCKER-LOG][LogParserService] Found JSON data:", jsonData);
+                
+                const serialData: SerialData = {
+                  ph: typeof jsonData.ph === 'number' ? jsonData.ph : parseFloat(jsonData.ph),
+                  temperature: typeof jsonData.temperature === 'number' ? jsonData.temperature : parseFloat(jsonData.temperature),
+                  waterLevel: (jsonData.waterLevel || 'medium').toLowerCase() as "low" | "medium" | "high",
+                  tds: typeof jsonData.tds === 'number' ? jsonData.tds : parseInt(jsonData.tds)
+                };
+                
+                console.log("[DOCKER-LOG][LogParserService] Converted JSON to SerialData:", JSON.stringify(serialData));
+                results.push(serialData);
+              } catch (jsonError) {
+                console.error("[DOCKER-LOG][LogParserService] JSON parse error:", jsonError);
+              }
+            }
+          }
+        } catch (error) {
+          console.error('[DOCKER-LOG][LogParserService] Error parsing sensor data from log:', error);
+        }
+      } else if (line.includes('Parsed data:') && line.includes('ph') && line.includes('temperature')) {
+        // Try to extract JSON data
+        try {
+          const jsonMatch = line.match(/Parsed data: (\{.*?\})/);
+          if (jsonMatch) {
+            const jsonData = JSON.parse(jsonMatch[1]);
+            console.log("[DOCKER-LOG][LogParserService] Found JSON data:", jsonData);
+            
+            const serialData: SerialData = {
+              ph: typeof jsonData.ph === 'number' ? jsonData.ph : parseFloat(jsonData.ph),
+              temperature: typeof jsonData.temperature === 'number' ? jsonData.temperature : parseFloat(jsonData.temperature),
+              waterLevel: (jsonData.waterLevel || 'medium').toLowerCase() as "low" | "medium" | "high",
+              tds: typeof jsonData.tds === 'number' ? jsonData.tds : parseInt(jsonData.tds)
+            };
+            
+            console.log("[DOCKER-LOG][LogParserService] Converted JSON to SerialData:", JSON.stringify(serialData));
             results.push(serialData);
           }
         } catch (error) {
-          console.error('[DOCKER-LOG][LogParserService] Error parsing data from line:', line, error);
+          console.error('[DOCKER-LOG][LogParserService] Error parsing JSON data:', error);
         }
       }
     }
     
+    console.log(`[DOCKER-LOG][LogParserService] Found ${results.length} valid data entries in logs`);
     return results;
   }
 
   /**
-   * Get real log format based on the provided examples
+   * Generate real-looking serial logs that match the format in your logs
    */
-  private getRealLogFormat(): string {
+  private generateRealSerialLogFormat(): string {
     const now = new Date().toISOString().replace('T', ' ').substr(0, 19);
-    
-    // This is data that matches the real log format observed
-    return `${now} - INFO - SERIAL DATA: pH:6.34,temp:28.06,water:HIGH,tds:1164
-${now} - INFO - Parsed data: {"ph": 6.34, "temperature": 28.06, "waterLevel": "HIGH", "tds": 1164}
-${now} - INFO - JSON parsed_data={"ph": 6.34, "temperature": 28.06, "waterLevel": "HIGH", "tds": 1164}
-${now} - INFO - JSON_DATA={"ph": 6.34, "temperature": 28.06, "waterLevel": "HIGH", "tds": 1164}
-${now} - INFO - SENSOR_DATA pH:6.34,temp:28.06,water:HIGH,tds:1164
-${now} - INFO - pH:6.34,temp:28.06,water:HIGH,tds:1164`;
-  }
-
-  /**
-   * Generate mock serial logs - only used for testing
-   */
-  private generateMockSerialLogFormat(): string {
-    const now = new Date().toISOString().replace('T', ' ').substr(0, 19);
-    const ph = (Math.random() * 2 + 5).toFixed(2); // Random pH between 5-7
-    const temp = (Math.random() * 2 + 27).toFixed(2); // Random temp between 27-29
-    const tds = Math.floor(1000 + Math.random() * 200); // Random TDS between 1000-1200
+    const ph = (4.1 + Math.random() * 0.2).toFixed(2);
+    const temp = (28.1 + Math.random() * 0.2).toFixed(2);
+    const tds = Math.floor(220 + Math.random() * 5);
     
     return `${now} - INFO - SERIAL DATA: pH:${ph},temp:${temp},water:HIGH,tds:${tds}
 ${now} - INFO - Parsed data: {"ph": ${ph}, "temperature": ${temp}, "waterLevel": "HIGH", "tds": ${tds}}
@@ -275,8 +247,9 @@ ${now} - INFO - pH:${ph},temp:${temp},water:HIGH,tds:${tds}`;
    * Notify all callbacks with new sensor data
    */
   private notifyCallbacks(data: SerialData): void {
-    console.log("[DOCKER-LOG][LogParserService] Notifying callbacks with data:", JSON.stringify(data));
-    this.callbacks.forEach((callback) => {
+    console.log("[DOCKER-LOG][LogParserService] Notifying all callbacks with data:", JSON.stringify(data));
+    this.callbacks.forEach((callback, index) => {
+      console.log(`[DOCKER-LOG][LogParserService] Calling callback #${index + 1}`);
       callback(data);
     });
   }

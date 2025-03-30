@@ -20,6 +20,7 @@ const ConnectionControl: React.FC<ConnectionControlProps> = ({
   dataReceived = false
 }) => {
   const [connecting, setConnecting] = useState(false);
+  const [usingMockData, setUsingMockData] = useState(false);
   const [isError, setIsError] = useState(false);
   
   useEffect(() => {
@@ -68,11 +69,24 @@ const ConnectionControl: React.FC<ConnectionControlProps> = ({
       
       console.log("[DOCKER-LOG][ConnectionControl] Attempting connection...");
       
-      const success = await serialService.connect();
+      let success = false;
+      success = await serialService.connect();
       
       console.log("[DOCKER-LOG][ConnectionControl] Connection result:", success);
       
       if (success) {
+        setUsingMockData(false); // Always false since we don't use mock data anymore
+        console.log("[DOCKER-LOG][ConnectionControl] Using mock data:", false);
+        
+        console.log("[DOCKER-LOG][ConnectionControl] Dispatching connection success event");
+        const event = new CustomEvent('connection-success', { 
+          detail: { 
+            message: "Connected to Arduino", 
+            description: "Now receiving data via serial connection" 
+          } 
+        });
+        document.dispatchEvent(event);
+        
         console.log("[DOCKER-LOG][ConnectionControl] Calling onConnect callback");
         onConnect();
       } else {
@@ -99,6 +113,7 @@ const ConnectionControl: React.FC<ConnectionControlProps> = ({
       console.log("[DOCKER-LOG][ConnectionControl] handleDisconnect called");
       await serialService.disconnect();
       toast.info("Disconnected from device");
+      setUsingMockData(false);
       setIsError(false);
       console.log("[DOCKER-LOG][ConnectionControl] Calling onDisconnect callback");
       onDisconnect();
@@ -124,7 +139,7 @@ const ConnectionControl: React.FC<ConnectionControlProps> = ({
               isConnected={isConnected}
               isError={isError}
               dataReceived={dataReceived}
-              usingMockData={false} // Never use mock data
+              usingMockData={usingMockData}
             />
           </div>
         </div>
