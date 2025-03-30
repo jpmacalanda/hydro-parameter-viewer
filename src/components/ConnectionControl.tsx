@@ -1,13 +1,13 @@
 
 import React, { useState, useEffect } from 'react';
-import { Button } from "@/components/ui/button";
 import serialService from "@/services/SerialService";
 import webSocketService from "@/services/WebSocketService";
 import { toast } from "sonner";
-import { Zap, RefreshCcw, Wifi, Usb, AlertCircle } from "lucide-react";
-import { Label } from "@/components/ui/label";
-import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@/components/ui/select";
+import { Zap } from "lucide-react";
 import { SerialPortInfo } from "@/services/types/serial.types";
+import PortSelector from './connection/PortSelector';
+import ConnectionStatus from './connection/ConnectionStatus';
+import ConnectionButtons from './connection/ConnectionButtons';
 
 interface ConnectionControlProps {
   onConnect: () => void;
@@ -124,6 +124,12 @@ const ConnectionControl: React.FC<ConnectionControlProps> = ({
     }
   };
   
+  useEffect(() => {
+    if (selectedPortId) {
+      setTimeout(checkPortUsage, 100);
+    }
+  }, [selectedPortId]);
+  
   const handleConnect = async () => {
     try {
       setConnecting(true);
@@ -212,109 +218,40 @@ const ConnectionControl: React.FC<ConnectionControlProps> = ({
     }
   };
   
-  const getConnectionTypeText = () => {
-    if (!isConnected) return "Disconnected";
-    if (isError) return "Connection Error";
-    if (isConnected && !dataReceived) return "Connected (No Data)";
-    if (usingMockData) return "Connected (Mock Data)";
-    if (usingWebSocket) return "Connected (WebSocket)";
-    return "Connected (Direct Serial)";
-  };
-  
-  const getConnectionTypeColor = () => {
-    if (!isConnected) return "bg-gray-400";
-    if (isError) return "bg-red-500";
-    if (isConnected && !dataReceived) return "bg-yellow-500";
-    if (usingMockData) return "bg-yellow-500";
-    if (usingWebSocket) return "bg-blue-500";
-    return "bg-green-500";
-  };
+  const canConnect = !((!selectedPortId && availablePorts.length > 0 && !isSecurityRestricted));
   
   return (
     <div className="space-y-4 my-4">
       <div className="flex flex-col space-y-4 sm:space-y-0">
         {isWebSerialSupported && !isSecurityRestricted && (
-          <div className="flex flex-col space-y-2 sm:flex-row sm:items-center sm:space-y-0 sm:space-x-4 mb-4">
-            <div className="flex-1">
-              <Label htmlFor="port-select" className="mb-2 block">Serial Port</Label>
-              <div className="flex space-x-2 items-center">
-                <Select
-                  value={selectedPortId}
-                  onValueChange={(value) => {
-                    setSelectedPortId(value);
-                    // The issue is here: we're passing an argument to setTimeout callback
-                    // but checkPortUsage doesn't accept arguments
-                    setTimeout(checkPortUsage, 100);
-                  }}
-                  disabled={isConnected || loadingPorts}
-                >
-                  <SelectTrigger id="port-select" className="flex-1">
-                    <SelectValue placeholder="Select a port" />
-                  </SelectTrigger>
-                  <SelectContent>
-                    {availablePorts.length === 0 ? (
-                      <SelectItem value="no-ports" disabled>
-                        No ports available
-                      </SelectItem>
-                    ) : (
-                      availablePorts.map((port) => (
-                        <SelectItem key={port.id} value={port.id}>
-                          {port.displayName}
-                        </SelectItem>
-                      ))
-                    )}
-                  </SelectContent>
-                </Select>
-                <Button
-                  variant="outline"
-                  size="icon"
-                  onClick={fetchAvailablePorts}
-                  disabled={isConnected || loadingPorts}
-                  title="Refresh ports"
-                >
-                  <RefreshCcw className={`h-4 w-4 ${loadingPorts ? 'animate-spin' : ''}`} />
-                </Button>
-              </div>
-              
-              {portStatus.busy && (
-                <div className="mt-2 text-sm flex items-center text-yellow-600">
-                  <AlertCircle className="h-4 w-4 mr-1" />
-                  {portStatus.message}
-                </div>
-              )}
-            </div>
-          </div>
+          <PortSelector 
+            availablePorts={availablePorts}
+            selectedPortId={selectedPortId}
+            setSelectedPortId={setSelectedPortId}
+            fetchAvailablePorts={fetchAvailablePorts}
+            loadingPorts={loadingPorts}
+            isConnected={isConnected}
+            portStatus={portStatus}
+          />
         )}
         
         <div className="flex flex-col space-y-4 sm:flex-row sm:items-center sm:justify-between sm:space-y-0">
           <div className="flex space-x-2">
-            {!isConnected ? (
-              <Button 
-                onClick={handleConnect}
-                variant="default"
-                className="bg-hydro-blue hover:bg-hydro-blue/90"
-                disabled={connecting || (!selectedPortId && availablePorts.length > 0 && !isSecurityRestricted)}
-              >
-                {connecting ? 'Connecting...' : 'Connect to Arduino'}
-              </Button>
-            ) : (
-              <Button 
-                onClick={handleDisconnect}
-                variant="outline"
-                className="border-hydro-blue text-hydro-blue hover:bg-hydro-blue/10"
-              >
-                Disconnect
-              </Button>
-            )}
+            <ConnectionButtons 
+              isConnected={isConnected}
+              connecting={connecting}
+              handleConnect={handleConnect}
+              handleDisconnect={handleDisconnect}
+              canConnect={canConnect}
+            />
             
-            <div className="flex items-center">
-              <div 
-                className={`mr-2 w-3 h-3 rounded-full ${getConnectionTypeColor()}`}
-              ></div>
-              <span className="text-sm text-gray-600">
-                {getConnectionTypeText()}
-              </span>
-            </div>
+            <ConnectionStatus 
+              isConnected={isConnected}
+              isError={isError}
+              dataReceived={dataReceived}
+              usingMockData={usingMockData}
+              usingWebSocket={usingWebSocket}
+            />
           </div>
         </div>
       </div>
