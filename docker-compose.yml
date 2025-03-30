@@ -34,13 +34,13 @@ services:
       - "8082:8082"  # Additional port for HTTP health checks
     # Make device mounting optional using variable substitution
     devices:
-      - "${SERIAL_DEVICE:-/dev/null}:/dev/ttyUSB0"
+      - "${SERIAL_DEVICE:-/dev/ttyUSB0}:/dev/ttyUSB0"
     volumes:
       - ./ssl:/etc/nginx/ssl
       - ./logs:/app/logs
     environment:
       - USE_SSL=true  # Set to true to use SSL
-      - MOCK_DATA=${MOCK_DATA:-true}  # Set to true to use mock data when device isn't available
+      - MOCK_DATA=${MOCK_DATA:-false}  # Changed default to false to prioritize real data
       - LOG_LEVEL=DEBUG  # Set log level to DEBUG for more detailed logs
       - SERIAL_PORT=/dev/ttyUSB0  # Set the serial port for the Arduino
       - BAUD_RATE=9600  # Set the baud rate for the Arduino
@@ -63,11 +63,13 @@ services:
     image: hydro-parameter-viewer-serial-monitor
     # Use the same Arduino device
     devices:
-      - "${SERIAL_DEVICE:-/dev/null}:/dev/ttyUSB0"
+      - "${SERIAL_DEVICE:-/dev/ttyUSB0}:/dev/ttyUSB0"
     environment:
       - SERIAL_PORT=/dev/ttyUSB0
       - BAUD_RATE=9600
-      - MOCK_DATA=${MOCK_DATA:-true}
+      - MOCK_DATA=${MOCK_DATA:-false}  # Changed default to false to prioritize real data
+      - MAX_RETRIES=5
+      - RETRY_DELAY=3
     restart: unless-stopped
     # No need for network connection - this container just logs
     logging:
@@ -75,6 +77,8 @@ services:
       options:
         max-size: "10m"
         max-file: "3"
+    # Add privilege setting for serial access
+    privileged: true
 
 networks:
   hydroponics-network:

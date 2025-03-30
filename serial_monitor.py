@@ -24,6 +24,8 @@ logger = logging.getLogger("serial_monitor")
 SERIAL_PORT = os.environ.get('SERIAL_PORT', '/dev/ttyUSB0')
 BAUD_RATE = int(os.environ.get('BAUD_RATE', 9600))
 MOCK_DATA = os.environ.get('MOCK_DATA', 'false').lower() == 'true'
+MAX_RETRIES = int(os.environ.get('MAX_RETRIES', 5))
+RETRY_DELAY = int(os.environ.get('RETRY_DELAY', 3))
 
 def generate_mock_data():
     """Generate mock data for testing purposes"""
@@ -45,18 +47,41 @@ def main():
         generate_mock_data()
         return
     
-    # Check if serial port exists
-    if not os.path.exists(SERIAL_PORT):
-        logger.error(f"Serial port {SERIAL_PORT} not found! Running in mock mode.")
-        generate_mock_data()
-        return
+    # Try to connect to serial port with retries
+    retries = 0
+    ser = None
     
-    # Try to open the serial port
+    while retries < MAX_RETRIES:
+        # Check if serial port exists
+        if not os.path.exists(SERIAL_PORT):
+            logger.error(f"Serial port {SERIAL_PORT} not found! Retrying in {RETRY_DELAY} seconds...")
+            retries += 1
+            time.sleep(RETRY_DELAY)
+            continue
+            
+        # Try to open the serial port
+        try:
+            logger.info(f"Opening serial port {SERIAL_PORT} at {BAUD_RATE} baud...")
+            ser = serial.Serial(SERIAL_PORT, BAUD_RATE, timeout=1)
+            logger.info(f"Successfully opened {SERIAL_PORT}")
+            break
+        except serial.SerialException as e:
+            logger.error(f"Failed to open serial port: {e}")
+            retries += 1
+            
+            if retries < MAX_RETRIES:
+                logger.info(f"Retrying in {RETRY_DELAY} seconds... (Attempt {retries}/{MAX_RETRIES})")
+                time.sleep(RETRY_DELAY)
+            else:
+                logger.error(f"Maximum retries ({MAX_RETRIES}) reached. Falling back to mock data.")
+                generate_mock_data()
+                return
+        except Exception as e:
+            logger.error(f"Unexpected error: {e}")
+            return 1
+    
+    # Main read loop
     try:
-        logger.info(f"Opening serial port {SERIAL_PORT} at {BAUD_RATE} baud...")
-        ser = serial.Serial(SERIAL_PORT, BAUD_RATE, timeout=1)
-        logger.info(f"Successfully opened {SERIAL_PORT}")
-        
         # Flush any initial data
         if ser.in_waiting:
             ser.read(ser.in_waiting)
@@ -77,15 +102,11 @@ def main():
                 logger.error(f"Error reading serial data: {e}")
                 time.sleep(1)
                 
-    except serial.SerialException as e:
-        logger.error(f"Failed to open serial port: {e}")
-        logger.info("Falling back to mock data")
-        generate_mock_data()
     except Exception as e:
-        logger.error(f"Unexpected error: {e}")
+        logger.error(f"Error in read loop: {e}")
         return 1
     finally:
-        if 'ser' in locals() and ser.is_open:
+        if ser and ser.is_open:
             ser.close()
             logger.info("Closed serial port")
     

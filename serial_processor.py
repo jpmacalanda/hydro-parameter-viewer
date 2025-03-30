@@ -31,30 +31,42 @@ def initialize_serial():
         logger.warning("Serial port is busy, falling back to mock data mode")
         return None
         
-    try:
-        logger.debug(f"Attempting to open serial port {settings.SERIAL_PORT} at {settings.BAUD_RATE} baud")
-        ser = serial.Serial(settings.SERIAL_PORT, settings.BAUD_RATE, timeout=1)
-        logger.info(f"Serial connection established on {settings.SERIAL_PORT}")
-        
-        # Flush initial data
-        if ser.in_waiting:
-            initial_data = ser.read(ser.in_waiting)
-            logger.info(f"Flushing initial data: {initial_data}")
-        return ser
+    # Try connecting to the serial port with retries
+    max_retries = 5
+    retry_delay = 3
+    retries = 0
+    
+    while retries < max_retries:
+        try:
+            logger.debug(f"Attempting to open serial port {settings.SERIAL_PORT} at {settings.BAUD_RATE} baud (attempt {retries+1}/{max_retries})")
+            ser = serial.Serial(settings.SERIAL_PORT, settings.BAUD_RATE, timeout=1)
+            logger.info(f"Serial connection established on {settings.SERIAL_PORT}")
             
-    except serial.SerialException as e:
-        logger.error(f"Error opening serial port: {e}")
-        logger.info("Falling back to mock data mode")
-        logger.error(f"CHECK IF:")
-        logger.error(f"- Arduino is connected to {settings.SERIAL_PORT}")
-        logger.error(f"- You have permission to access {settings.SERIAL_PORT} (try: sudo chmod 666 {settings.SERIAL_PORT})")
-        logger.error(f"- The Arduino is sending data in the format: pH:6.20,temp:23.20,water:medium,tds:652")
-        logger.error(f"- The port is not in use by another process (try: lsof {settings.SERIAL_PORT})")
-        return None
-    except Exception as e:
-        logger.error(f"Unexpected error when connecting to serial port: {e}")
-        logger.info("Falling back to mock data mode")
-        return None
+            # Flush initial data
+            if ser.in_waiting:
+                initial_data = ser.read(ser.in_waiting)
+                logger.info(f"Flushing initial data: {initial_data}")
+            return ser
+        except serial.SerialException as e:
+            logger.error(f"Error opening serial port: {e}")
+            retries += 1
+            
+            if retries < max_retries:
+                logger.info(f"Retrying in {retry_delay} seconds...")
+                time.sleep(retry_delay)
+            else:
+                logger.error(f"Maximum retries ({max_retries}) reached. Falling back to mock data.")
+                logger.info("Falling back to mock data mode")
+                logger.error(f"CHECK IF:")
+                logger.error(f"- Arduino is connected to {settings.SERIAL_PORT}")
+                logger.error(f"- You have permission to access {settings.SERIAL_PORT} (try: sudo chmod 666 {settings.SERIAL_PORT})")
+                logger.error(f"- The Arduino is sending data in the format: pH:6.20,temp:23.20,water:medium,tds:652")
+                logger.error(f"- The port is not in use by another process (try: lsof {settings.SERIAL_PORT})")
+                return None
+        except Exception as e:
+            logger.error(f"Unexpected error when connecting to serial port: {e}")
+            logger.info("Falling back to mock data mode")
+            return None
 
 async def send_data_to_clients(data: Dict[str, Any]):
     """Send data to all connected clients"""
