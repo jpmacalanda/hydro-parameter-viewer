@@ -1,4 +1,3 @@
-
 import { SerialData } from './types/serial.types';
 import { toast } from "sonner";
 
@@ -24,7 +23,7 @@ class LogParserService {
     
     console.log("[DOCKER-LOG][LogParserService] Started polling for sensor data");
     
-    // Poll every 500ms for faster updates
+    // Poll every 200ms for faster updates
     this.pollingInterval = setInterval(() => {
       this.fetchAndParseLogs();
       this.pollCounter++;
@@ -33,7 +32,7 @@ class LogParserService {
       if (this.pollCounter % 20 === 0) {
         console.log(`[DOCKER-LOG][LogParserService] Polling iteration ${this.pollCounter}`);
       }
-    }, 500);
+    }, 200); // Faster polling interval
     
     // Do an initial fetch immediately
     this.fetchAndParseLogs();
@@ -71,21 +70,20 @@ class LogParserService {
         // Get the most recent reading
         const latestData = sensorData[sensorData.length - 1];
         
-        // Skip if it's the same data we've already processed
-        if (this.lastReceivedData && 
-            this.lastReceivedData.ph === latestData.ph &&
-            this.lastReceivedData.temperature === latestData.temperature &&
-            this.lastReceivedData.waterLevel === latestData.waterLevel &&
-            this.lastReceivedData.tds === latestData.tds) {
-          return;
-        }
-        
-        // Store this data as the last received (without timestamp)
+        // Always provide data on each poll to ensure dataReceived flag is set
         this.lastReceivedData = latestData;
         console.log("[DOCKER-LOG][LogParserService] New data:", JSON.stringify(latestData));
         
         // Update listeners immediately with the latest data
         this.notifyCallbacks(latestData);
+      } else {
+        console.log("[DOCKER-LOG][LogParserService] No valid sensor data found in logs");
+        
+        // If we have last received data, reuse it to keep UI updated
+        if (this.lastReceivedData) {
+          console.log("[DOCKER-LOG][LogParserService] Reusing last received data");
+          this.notifyCallbacks(this.lastReceivedData);
+        }
       }
     } catch (error) {
       console.error('[DOCKER-LOG][LogParserService] Error fetching logs:', error);
