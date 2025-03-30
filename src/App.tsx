@@ -13,7 +13,7 @@ function App() {
   const [sensorData, setSensorData] = useState({
     ph: 7.0,
     temperature: 25.0,
-    waterLevel: "medium", // Changed from "MEDIUM" to "medium" to match type
+    waterLevel: "medium" as "low" | "medium" | "high", // Type assertion to specify literal type
     tds: 650
   });
   const [dataHistory, setDataHistory] = useState([]);

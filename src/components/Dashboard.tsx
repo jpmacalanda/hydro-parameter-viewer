@@ -1,4 +1,5 @@
-import React, { useState, useEffect } from 'react';
+
+import React, { useEffect, useState } from 'react';
 import MonitoringPanel from './dashboard/MonitoringPanel';
 import SystemInfoPanel from './dashboard/SystemInfoPanel';
 import serialService from '@/services/SerialService';
@@ -49,33 +50,10 @@ const DashboardContent: React.FC<DashboardProps> = ({
   setFeatures,
   onSensorData
 }) => {
-  const [sensorData, setSensorData] = useState<SerialData>({
-    ph: 7.0,
-    temperature: 25.0,
-    waterLevel: "medium",
-    tds: 650,
-  });
+  // Remove all the duplicate state declarations since we're now using props
   const [connected, setConnected] = useState(false);
   const [lastUpdate, setLastUpdate] = useState<Date | null>(null);
-  const [thresholds, setThresholds] = useState({
-    phMin: 6.0,
-    phMax: 7.0,
-    temperatureMin: 20,
-    temperatureMax: 30,
-    tdsMin: 600,
-    tdsMax: 700,
-  });
   const [showGraphs, setShowGraphs] = useState(false);
-  
-  const [features, setFeatures] = useState({
-    showStatistics: true,
-    showThresholds: true,
-    showSystemLogs: true,
-    showSerialMonitor: true,
-  });
-  
-  const [dataHistory, setDataHistory] = useState<SerialData[]>([]);
-  const MAX_HISTORY_LENGTH = 100;
   
   const [phHistory, setPhHistory] = useState(Array.from({length: 24}, (_, i) => ({
     time: `${i}:00`,
@@ -98,18 +76,13 @@ const DashboardContent: React.FC<DashboardProps> = ({
 
   useEffect(() => {
     serialService.onData((data) => {
-      setSensorData(data);
       setLastUpdate(new Date());
       setLastDataReceived(new Date());
       
-      setDataHistory(prevHistory => {
-        const newHistory = [...prevHistory, data];
-        if (newHistory.length > MAX_HISTORY_LENGTH) {
-          return newHistory.slice(-MAX_HISTORY_LENGTH);
-        }
-        return newHistory;
-      });
+      // We don't need to update the sensorData state here anymore
+      // as it's now coming in as a prop from the parent
       
+      // Pass the received data up to the parent
       onSensorData(data);
     });
 
