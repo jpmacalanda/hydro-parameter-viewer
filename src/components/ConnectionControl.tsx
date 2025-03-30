@@ -27,6 +27,7 @@ const ConnectionControl: React.FC<ConnectionControlProps> = ({
   const [availablePorts, setAvailablePorts] = useState<SerialPortInfo[]>([]);
   const [selectedPortId, setSelectedPortId] = useState<string>("");
   const [loadingPorts, setLoadingPorts] = useState(false);
+  const [isError, setIsError] = useState(false);
   const isWebSerialSupported = serialService.isSupported;
   const isSecurityRestricted = serialService.isSecurityRestricted;
   const isRaspberryPi = window.location.hostname === 'raspberrypi.local' || 
@@ -39,6 +40,7 @@ const ConnectionControl: React.FC<ConnectionControlProps> = ({
     // Listen for Arduino errors
     const handleArduinoError = (event: Event) => {
       const customEvent = event as CustomEvent;
+      setIsError(true);
       toast.error(customEvent.detail.message, {
         description: "Check serial monitor for more details",
         icon: <Zap className="h-4 w-4" />,
@@ -47,6 +49,17 @@ const ConnectionControl: React.FC<ConnectionControlProps> = ({
     
     document.addEventListener('arduino-error', handleArduinoError);
     
+    // Listen for successful connection events
+    const handleConnectionSuccess = (event: Event) => {
+      const customEvent = event as CustomEvent;
+      setIsError(false);
+      toast.success(customEvent.detail.message, {
+        description: customEvent.detail.description,
+      });
+    };
+    
+    document.addEventListener('connection-success', handleConnectionSuccess);
+    
     // Load available ports on component mount
     if (isWebSerialSupported && !isSecurityRestricted) {
       fetchAvailablePorts();
@@ -54,6 +67,7 @@ const ConnectionControl: React.FC<ConnectionControlProps> = ({
     
     return () => {
       document.removeEventListener('arduino-error', handleArduinoError);
+      document.removeEventListener('connection-success', handleConnectionSuccess);
     };
   }, [isWebSerialSupported, isSecurityRestricted]);
   
@@ -82,47 +96,52 @@ const ConnectionControl: React.FC<ConnectionControlProps> = ({
   const handleConnect = async () => {
     try {
       setConnecting(true);
+      setIsError(false);
+      
+      console.log("Attempting connection...");
       
       // If auto-detect is disabled and we have a selected port, use it
       let success = false;
       if (!autoDetect && selectedPortId) {
         const selectedPort = availablePorts.find(p => p.id === selectedPortId);
+        console.log("Using selected port:", selectedPort);
         if (selectedPort) {
           success = await serialService.connect(selectedPort.port);
         } else {
           success = await serialService.connect();
         }
       } else {
+        console.log("Using auto-detect connection");
         success = await serialService.connect();
       }
+      
+      console.log("Connection result:", success);
       
       if (success) {
         setUsingMockData(serialService.isMockData);
         setUsingWebSocket(serialService.isWebSocket);
         
-        if (serialService.isMockData) {
-          toast.info("Using simulated data", {
-            description: autoDetect ? 
-              "No hardware detected, using mock data instead" : 
-              "Web Serial API not supported, using mock data instead"
+        // Dispatch success event
+        if (!serialService.isMockData && !serialService.isWebSocket) {
+          const event = new CustomEvent('connection-success', { 
+            detail: { 
+              message: "Connected to Arduino", 
+              description: "Now receiving data via serial connection" 
+            } 
           });
-        } else if (serialService.isWebSocket) {
-          toast.success("Connected via WebSocket", {
-            description: "Now receiving data from the Raspberry Pi's Arduino"
-          });
-        } else {
-          toast.success("Connected to Arduino", {
-            description: "Now receiving data via serial connection"
-          });
+          document.dispatchEvent(event);
         }
+        
         onConnect();
       } else {
+        setIsError(true);
         toast.error("Failed to connect", {
           description: "Could not establish connection to Arduino"
         });
       }
     } catch (error) {
       console.error("Connection error:", error);
+      setIsError(true);
       toast.error("Connection error", {
         description: "An error occurred while connecting to the device"
       });
@@ -137,6 +156,7 @@ const ConnectionControl: React.FC<ConnectionControlProps> = ({
       toast.info("Disconnected from device");
       setUsingMockData(false);
       setUsingWebSocket(false);
+      setIsError(false);
     } catch (error) {
       console.error("Disconnection error:", error);
     }
@@ -149,6 +169,7 @@ const ConnectionControl: React.FC<ConnectionControlProps> = ({
   
   const getConnectionTypeText = () => {
     if (!isConnected) return "Disconnected";
+    if (isError) return "Connection Error";
     if (usingMockData) return "Connected (Mock Data)";
     if (usingWebSocket) return "Connected (WebSocket)";
     return "Connected (Direct Serial)";
@@ -156,6 +177,7 @@ const ConnectionControl: React.FC<ConnectionControlProps> = ({
   
   const getConnectionTypeColor = () => {
     if (!isConnected) return "bg-gray-400";
+    if (isError) return "bg-red-500";
     if (usingMockData) return "bg-yellow-500";
     if (usingWebSocket) return "bg-blue-500";
     return "bg-green-500";

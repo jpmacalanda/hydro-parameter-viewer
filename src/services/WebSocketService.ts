@@ -1,3 +1,4 @@
+
 type DataCallback = (data: {
   ph: number;
   temperature: number;
@@ -62,12 +63,33 @@ class WebSocketService {
             return;
           }
           
-          const data = JSON.parse(event.data);
-          console.log("Received data:", data);
-          this.callbacks.forEach(callback => callback(data));
+          // Try to parse the data - if it's a string, check if it's valid JSON
+          let data;
+          if (typeof event.data === 'string') {
+            if (event.data.trim() === '') {
+              console.log("Received empty message, ignoring");
+              return;
+            }
+            
+            try {
+              data = JSON.parse(event.data);
+              console.log("Received data:", data);
+              
+              // Validate data structure before proceeding
+              if (!this.isValidData(data)) {
+                console.warn("Received invalid data structure:", data);
+                return;
+              }
+              
+              this.callbacks.forEach(callback => callback(data));
+            } catch (parseError) {
+              console.error('Error parsing WebSocket data:', parseError, 'Raw data:', event.data);
+              this.notifyError(new Error('Invalid data format from server'));
+            }
+          }
         } catch (error) {
-          console.error('Error parsing WebSocket data:', error);
-          this.notifyError(new Error('Invalid data format from server'));
+          console.error('Error handling WebSocket message:', error);
+          this.notifyError(new Error('Error processing WebSocket message'));
         }
       };
       
@@ -102,10 +124,18 @@ class WebSocketService {
         }
       };
       
-      setInterval(() => {
+      // Set up a ping interval
+      const pingInterval = setInterval(() => {
         if (this.isConnected && this.ws && this.ws.readyState === WebSocket.OPEN) {
-          this.ws.send('ping');
-          console.log('Sent ping message');
+          try {
+            this.ws.send('ping');
+            console.log('Sent ping message');
+          } catch (error) {
+            console.error('Error sending ping:', error);
+            clearInterval(pingInterval);
+          }
+        } else {
+          clearInterval(pingInterval);
         }
       }, 15000);
       
@@ -115,6 +145,15 @@ class WebSocketService {
       this.notifyError(new Error('Failed to create WebSocket connection'));
       return false;
     }
+  }
+  
+  private isValidData(data: any): boolean {
+    // Basic validation to ensure the data has required fields
+    return (
+      data && 
+      typeof data === 'object' &&
+      ('ph' in data || 'temperature' in data || 'waterLevel' in data || 'tds' in data)
+    );
   }
   
   private getDefaultWebSocketUrl(): string {
