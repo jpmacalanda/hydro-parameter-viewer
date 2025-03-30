@@ -47,6 +47,16 @@ const TDSDisplay: React.FC<TDSDisplayProps> = ({
     }
   };
   
+  // Add the missing getBgColor function
+  const getBgColor = () => {
+    switch (status) {
+      case "unavailable": return "bg-gray-400";
+      case "low": return "bg-red-500";
+      case "high": return "bg-yellow-500";
+      case "normal": return "bg-green-500";
+    }
+  };
+  
   const statusText = () => {
     switch (status) {
       case "unavailable": return "No Data";
@@ -78,7 +88,7 @@ const TDSDisplay: React.FC<TDSDisplayProps> = ({
               Optimal
             </span>
           ) : (
-            <span className={`px-2 py-1 rounded-full text-xs font-medium text-white bg-${getColor()}`}>
+            <span className={`px-2 py-1 rounded-full text-xs font-medium text-white ${getBgColor()}`}>
               {statusText()}
             </span>
           )}

@@ -22,6 +22,17 @@ const WaterLevelDisplay: React.FC<WaterLevelDisplayProps> = ({ level }) => {
     }
   };
   
+  // Add getBgColor function for background colors
+  const getBgColor = () => {
+    if (!isDataAvailable) return "bg-gray-400";
+    
+    switch (level) {
+      case "low": return "bg-red-500";
+      case "medium": return "bg-yellow-500";
+      case "high": return "bg-green-500";
+    }
+  };
+  
   const statusText = () => {
     if (!isDataAvailable) return "No Data";
     
@@ -75,7 +86,7 @@ const WaterLevelDisplay: React.FC<WaterLevelDisplayProps> = ({ level }) => {
               Optimal
             </span>
           ) : (
-            <span className={`px-2 py-1 rounded-full text-xs font-medium text-white bg-${getColor()}`}>
+            <span className={`px-2 py-1 rounded-full text-xs font-medium text-white ${getBgColor()}`}>
               {statusText()}
             </span>
           )}

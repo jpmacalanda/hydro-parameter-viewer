@@ -47,6 +47,16 @@ const TemperatureDisplay: React.FC<TemperatureDisplayProps> = ({
     }
   };
   
+  // Add the missing getBgColor function
+  const getBgColor = () => {
+    switch (status) {
+      case "unavailable": return "bg-gray-400";
+      case "low": return "bg-hydro-temp-low";
+      case "high": return "bg-hydro-temp-high";
+      case "normal": return "bg-hydro-temp-normal";
+    }
+  };
+  
   const statusText = () => {
     switch (status) {
       case "unavailable": return "No Data";
