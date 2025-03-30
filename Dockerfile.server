@@ -25,8 +25,8 @@ RUN cat > /app/entrypoint.sh << 'EOF'
 #!/bin/sh
 echo "Checking for Arduino device..."
 if [ ! -c /dev/ttyUSB0 ]; then
-  echo "WARNING: Arduino device not found at /dev/ttyUSB0"
-  echo "Please connect the Arduino device"
+  echo "ERROR: Arduino device not found at /dev/ttyUSB0"
+  echo "Please connect the Arduino device to continue"
 elif [ ! -w /dev/ttyUSB0 ]; then
   echo "WARNING: Arduino device at /dev/ttyUSB0 is not writable"
   echo "Attempting to fix permissions with chmod..."
@@ -53,7 +53,9 @@ if [ -c /dev/ttyUSB0 ] && [ -w /dev/ttyUSB0 ]; then
   echo "Arduino device is available and writable at /dev/ttyUSB0"
   echo "Using real data from Arduino"
 else
-  echo "Unable to access Arduino. Please connect your Arduino device"
+  echo "ERROR: Unable to access Arduino."
+  echo "The system requires a physical Arduino connection to function."
+  echo "Please connect your Arduino device and restart."
 fi
 
 exec python3 hydroponics_server.py

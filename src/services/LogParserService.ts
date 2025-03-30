@@ -65,6 +65,9 @@ class LogParserService {
       
       if (!logs || logs.trim() === "") {
         console.warn("[DOCKER-LOG][LogParserService] Received empty logs from server");
+        toast.error('No data available in logs', {
+          description: 'Check if Arduino is connected and sending data'
+        });
         return;
       }
       
@@ -86,6 +89,9 @@ class LogParserService {
         this.notifyCallbacks(latestData);
       } else {
         console.warn("[DOCKER-LOG][LogParserService] No valid sensor data found in logs");
+        toast.error('No valid sensor data found', {
+          description: 'Check if Arduino is sending data in the correct format'
+        });
       }
     } catch (error) {
       console.error('[DOCKER-LOG][LogParserService] Error fetching logs:', error);

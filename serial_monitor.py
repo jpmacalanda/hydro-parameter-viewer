@@ -64,10 +64,9 @@ def main():
                 logger.info(f"Retrying in {RETRY_DELAY} seconds... (Attempt {retries}/{MAX_RETRIES})")
                 time.sleep(RETRY_DELAY)
             else:
-                logger.error(f"Maximum retries ({MAX_RETRIES}) reached. Using sample data.")
-                logger.info("Using sample data format for compatibility")
-                sample_data_loop()
-                return
+                logger.error(f"Maximum retries ({MAX_RETRIES}) reached. Exiting.")
+                logger.error("Please ensure Arduino is connected and port is accessible")
+                return 1
         except Exception as e:
             logger.error(f"Unexpected error: {e}")
             return 1
@@ -134,41 +133,6 @@ def main():
             logger.info("Closed serial port")
     
     return 0
-
-def sample_data_loop():
-    """
-    Use sample data instead of random mock data to ensure consistent format
-    This maintains format compatibility without random values
-    """
-    logger.info("Starting sample data logging for compatibility")
-    # Use consistent sample values
-    sample_values = [
-        {"ph": 6.5, "temperature": 23.0, "waterLevel": "MEDIUM", "tds": 650},
-        {"ph": 6.6, "temperature": 23.2, "waterLevel": "MEDIUM", "tds": 655},
-        {"ph": 6.7, "temperature": 23.1, "waterLevel": "MEDIUM", "tds": 660}
-    ]
-    
-    index = 0
-    while True:
-        # Rotate through sample values
-        data = sample_values[index % len(sample_values)]
-        index += 1
-        
-        # Log the raw data exactly as if it came from Arduino
-        data_str = f"pH:{data['ph']},temp:{data['temperature']},water:{data['waterLevel']},tds:{data['tds']}"
-        logger.info(f"SERIAL DATA: {data_str}")
-        
-        # Log data in JSON format for easier parsing
-        logger.info(f"Parsed data: {json.dumps(data)}")
-        
-        # Log in multiple formats to make parsing easier for web app
-        logger.info(f"JSON parsed_data={json.dumps(data)}")
-        logger.info(f"JSON_DATA={json.dumps(data)}")
-        logger.info(f"SENSOR_DATA pH:{data['ph']},temp:{data['temperature']},water:{data['waterLevel']},tds:{data['tds']}")
-        
-        # Also log in the format that the app is looking for
-        logger.info(f"pH:{data['ph']},temp:{data['temperature']},water:{data['waterLevel']},tds:{data['tds']}")
-        time.sleep(2)
 
 if __name__ == "__main__":
     sys.exit(main())

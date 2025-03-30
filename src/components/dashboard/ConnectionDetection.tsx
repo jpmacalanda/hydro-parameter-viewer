@@ -42,9 +42,10 @@ const ConnectionDetection: React.FC<ConnectionDetectionProps> = ({
     if (connected && !lastDataReceived) {
       const timer = setTimeout(() => {
         addNotification(
-          'warning',
-          'Connected But No Data',
-          'Connection established, but no data is being received. Check:\n' +
+          'error',
+          'No Data Received',
+          'Connection established, but no sensor data is being received. Check:\n' +
+          '- Arduino is physically connected and powered on\n' +
           '- Arduino is sending data in the format: pH:6.20,temp:23.20,water:medium,tds:652\n' +
           '- Correct port is selected (/dev/ttyUSB0 on Raspberry Pi)\n' +
           '- Baud rate matches (9600)\n' +
