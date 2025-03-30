@@ -38,7 +38,7 @@ services:
       - ./logs:/app/logs
     environment:
       - USE_SSL=false  # Set to false to avoid SSL issues during debugging
-      - MOCK_DATA=true  # Use mock data for testing
+      - MOCK_DATA=false  # Set to false to use real Arduino data
       - LOG_LEVEL=DEBUG  # Set log level to DEBUG for more detailed logs
       - SERIAL_PORT=/dev/ttyUSB0  # Set the serial port for the Arduino
       - BAUD_RATE=9600  # Set the baud rate for the Arduino

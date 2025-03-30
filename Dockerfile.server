@@ -19,4 +19,3 @@ COPY hydroponics_server.py .
 
 # Run the server
 CMD ["python3", "hydroponics_server.py"]
-

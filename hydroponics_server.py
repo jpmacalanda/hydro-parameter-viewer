@@ -162,22 +162,21 @@ if MOCK_DATA:
 
 connected_clients = set()
 
+# Fixed HTTP handler function - Properly returns WebSocket response objects
 async def http_handler(path, request_headers):
     """Handle regular HTTP requests to provide a health endpoint and API access"""
+    logger.debug(f"HTTP request received for path: {path}")
+    
     if path == '/health' or path == '/':
         logger.info(f"Received HTTP request to {path}")
         
-        # Respond with a simple health check
-        body = "healthy\n"
-        
-        # Return a valid HTTP response
-        headers = [
+        # Return a proper HTTP response with correct headers
+        return http.HTTPStatus.OK, [
             ('Content-Type', 'text/plain'),
             ('Access-Control-Allow-Origin', '*'),
             ('Access-Control-Allow-Methods', 'GET, OPTIONS'),
             ('Access-Control-Allow-Headers', 'Content-Type'),
-        ]
-        return http.HTTPStatus.OK, headers, body.encode()
+        ], b"healthy\n"
     
     # For any other path, also return 200 OK with info
     logger.info(f"Received HTTP request to unknown path: {path}")
@@ -187,12 +186,12 @@ async def http_handler(path, request_headers):
         "This is the WebSocket server for the Hydroponics Monitoring System.\n"
         "For the web interface, please access the web application.\n"
         "For WebSocket connections, connect to ws://hostname:8081\n"
-    )
-    headers = [
+    ).encode('utf-8')
+    
+    return http.HTTPStatus.OK, [
         ('Content-Type', 'text/plain'),
         ('Access-Control-Allow-Origin', '*'),
-    ]
-    return http.HTTPStatus.OK, headers, body.encode()
+    ], body
 
 async def websocket_handler(websocket, path):
     """Handle WebSocket connections for data streaming"""
@@ -436,15 +435,19 @@ async def main():
         except Exception as e:
             logger.error(f"Error enumerating network interfaces: {e}")
         
-        # Important: Updated WebSocket server creation with proper origins to handle all connections
+        # Updated websockets server with explicitly configured ping_interval and close_timeout
         server = await websockets.serve(
             websocket_handler,
             "0.0.0.0", 
             WS_PORT, 
             ssl=ssl_context,
-            ping_interval=None,  # Disable automatic ping as we're implementing our own
+            ping_interval=30,  # Send ping every 30 seconds to keep connection alive
+            ping_timeout=10,   # Wait 10 seconds for pong response
+            close_timeout=5,   # Wait 5 seconds for a clean connection close
+            max_size=2**20,    # 1MB max message size
+            max_queue=32,      # Limit message queue to prevent memory issues
             process_request=http_handler,  # Add HTTP request handler for regular requests
-            origins=None  # Allow connections from any origin
+            logger=logger      # Use our configured logger
         )
         
         logger.info(f"Server running on port {WS_PORT} {'with SSL' if ssl_context else 'without SSL'}")
