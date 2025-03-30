@@ -17,7 +17,8 @@ function App() {
     ph: 7.0,
     temperature: 25.0,
     waterLevel: "medium",
-    tds: 650
+    tds: 650,
+    timestamp: new Date().toISOString()
   });
   const [dataHistory, setDataHistory] = useState<SerialData[]>([]);
   const [thresholds, setThresholds] = useState({
@@ -30,7 +31,6 @@ function App() {
   });
   const [dataReceived, setDataReceived] = useState(false);
   
-  // Update features state to remove useWebSocket
   const [features, setFeatures] = useState({
     showStatistics: true,
     showThresholds: true,
@@ -86,6 +86,12 @@ function App() {
 
   const handleSensorData = (data: SerialData) => {
     console.log("[DOCKER-LOG][App] Received new sensor data:", JSON.stringify(data));
+    
+    // Ensure the data has a timestamp at the application level
+    if (!data.timestamp) {
+      data.timestamp = new Date().toISOString();
+    }
+    
     setSensorData(data);
     setDataHistory(prev => {
       const newHistory = [...prev, data];

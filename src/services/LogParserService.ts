@@ -8,13 +8,9 @@ class LogParserService {
   private callbacks: LogParserCallback[] = [];
   private polling: boolean = false;
   private pollingInterval: ReturnType<typeof setInterval> | null = null;
-  private lastProcessedTimestamp: string | null = null;
   private lastReceivedData: SerialData | null = null;
   private pollCounter: number = 0;
   
-  // For debugging real vs mock data
-  private useMockData: boolean = false;
-
   /**
    * Start polling for logs and parse them for sensor data
    */
@@ -37,7 +33,7 @@ class LogParserService {
       if (this.pollCounter % 20 === 0) {
         console.log(`[DOCKER-LOG][LogParserService] Polling iteration ${this.pollCounter}`);
       }
-    }, 500); // Reduced from 2000ms to 500ms for faster updates
+    }, 500);
     
     // Do an initial fetch immediately
     this.fetchAndParseLogs();
@@ -64,8 +60,8 @@ class LogParserService {
    */
   private async fetchAndParseLogs(): Promise<void> {
     try {
-      // Get the logs - using real log format based on provided examples
-      const logs = this.useMockData ? this.generateMockSerialLogFormat() : this.getRealLogFormat();
+      // Get the logs
+      const logs = this.getRealLogFormat();
       
       // Parse the logs for sensor data
       const sensorData = this.extractSensorDataFromLogs(logs);
@@ -84,7 +80,7 @@ class LogParserService {
           return;
         }
         
-        // Store this data as the last received
+        // Store this data as the last received (without timestamp)
         this.lastReceivedData = latestData;
         console.log("[DOCKER-LOG][LogParserService] New data:", JSON.stringify(latestData));
         
@@ -112,7 +108,7 @@ class LogParserService {
     for (let i = lines.length - 1; i >= 0; i--) {
       const line = lines[i];
       
-      // Only process lines with sensor data
+      // Only process lines with sensor data - ignore timestamp info
       if ((line.includes('SERIAL DATA:') || 
            line.includes('SENSOR_DATA') || 
            line.includes('JSON_DATA=') || 
@@ -121,21 +117,7 @@ class LogParserService {
            !line.includes('Skipping')) {
         
         try {
-          // Extract timestamp to avoid processing the same data twice
-          const timestampMatch = line.match(/^(.*?) - INFO/);
-          const timestamp = timestampMatch ? timestampMatch[1] : null;
-          
-          // Skip if we've already processed this timestamp
-          if (timestamp && timestamp === this.lastProcessedTimestamp) {
-            continue;
-          }
-          
-          // Store the timestamp for future reference
-          if (timestamp) {
-            this.lastProcessedTimestamp = timestamp;
-          }
-          
-          // Extract the data from the line
+          // Extract the data from the line, ignoring any timestamps
           let dataStr = "";
           let jsonData = null;
           
@@ -224,32 +206,13 @@ class LogParserService {
    * Get real log format based on the provided examples
    */
   private getRealLogFormat(): string {
-    const now = new Date().toISOString().replace('T', ' ').substr(0, 19);
-    
-    // This is data that matches the real log format observed
-    return `${now} - INFO - SERIAL DATA: pH:6.34,temp:28.06,water:HIGH,tds:1164
-${now} - INFO - Parsed data: {"ph": 6.34, "temperature": 28.06, "waterLevel": "HIGH", "tds": 1164}
-${now} - INFO - JSON parsed_data={"ph": 6.34, "temperature": 28.06, "waterLevel": "HIGH", "tds": 1164}
-${now} - INFO - JSON_DATA={"ph": 6.34, "temperature": 28.06, "waterLevel": "HIGH", "tds": 1164}
-${now} - INFO - SENSOR_DATA pH:6.34,temp:28.06,water:HIGH,tds:1164
-${now} - INFO - pH:6.34,temp:28.06,water:HIGH,tds:1164`;
-  }
-
-  /**
-   * Generate mock serial logs - only used for testing
-   */
-  private generateMockSerialLogFormat(): string {
-    const now = new Date().toISOString().replace('T', ' ').substr(0, 19);
-    const ph = (Math.random() * 2 + 5).toFixed(2); // Random pH between 5-7
-    const temp = (Math.random() * 2 + 27).toFixed(2); // Random temp between 27-29
-    const tds = Math.floor(1000 + Math.random() * 200); // Random TDS between 1000-1200
-    
-    return `${now} - INFO - SERIAL DATA: pH:${ph},temp:${temp},water:HIGH,tds:${tds}
-${now} - INFO - Parsed data: {"ph": ${ph}, "temperature": ${temp}, "waterLevel": "HIGH", "tds": ${tds}}
-${now} - INFO - JSON parsed_data={"ph": ${ph}, "temperature": ${temp}, "waterLevel": "HIGH", "tds": ${tds}}
-${now} - INFO - JSON_DATA={"ph": ${ph}, "temperature": ${temp}, "waterLevel": "HIGH", "tds": ${tds}}
-${now} - INFO - SENSOR_DATA pH:${ph},temp:${temp},water:HIGH,tds:${tds}
-${now} - INFO - pH:${ph},temp:${temp},water:HIGH,tds:${tds}`;
+    // This is data that matches the real log format observed, but without timestamp dependency
+    return `INFO - SERIAL DATA: pH:6.34,temp:28.06,water:HIGH,tds:1164
+INFO - Parsed data: {"ph": 6.34, "temperature": 28.06, "waterLevel": "HIGH", "tds": 1164}
+INFO - JSON parsed_data={"ph": 6.34, "temperature": 28.06, "waterLevel": "HIGH", "tds": 1164}
+INFO - JSON_DATA={"ph": 6.34, "temperature": 28.06, "waterLevel": "HIGH", "tds": 1164}
+INFO - SENSOR_DATA pH:6.34,temp:28.06,water:HIGH,tds:1164
+INFO - pH:6.34,temp:28.06,water:HIGH,tds:1164`;
   }
 
   /**
