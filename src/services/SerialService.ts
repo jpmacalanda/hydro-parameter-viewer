@@ -1,3 +1,4 @@
+
 // Serial service to connect with Arduino via Web Serial API
 import { 
   SerialData, 
@@ -21,12 +22,11 @@ class SerialService {
   private autoDetectHardware: boolean = true; // Default to auto-detect
   private useMockData: boolean = false;
   private securityRestricted: boolean = false;
+  private usingWebSocket: boolean = false;
 
   constructor() {
     // Check if we're running on the Raspberry Pi
-    this.isRaspberryPi = window.location.hostname === 'raspberrypi.local' || 
-                         window.location.hostname.startsWith('192.168.') ||
-                         window.location.hostname === 'localhost';
+    this.isRaspberryPi = this.checkIfRaspberryPi();
                          
     // Load auto-detect preference from localStorage if it exists
     const savedPreference = localStorage.getItem('autoDetectHardware');
@@ -36,6 +36,21 @@ class SerialService {
     
     // Check if Web Serial API is restricted by security policy
     this.checkSecurityRestrictions();
+  }
+
+  // Check if we're running on the Raspberry Pi or another device on the network
+  private checkIfRaspberryPi(): boolean {
+    const hostname = window.location.hostname;
+    return hostname === 'raspberrypi.local' || 
+           hostname.startsWith('192.168.') ||
+           hostname === 'localhost';
+  }
+
+  // Check if we're accessing the app from a remote device (not the same as the one running the server)
+  private isRemoteAccess(): boolean {
+    // If we're not on localhost, we're likely accessing from another device
+    return window.location.hostname !== 'localhost' && 
+           window.location.hostname !== '127.0.0.1';
   }
 
   // Check if Web Serial API is supported
@@ -61,6 +76,11 @@ class SerialService {
   // Check if we're currently using mock data
   get isMockData(): boolean {
     return this.useMockData;
+  }
+  
+  // Check if we're using WebSocket connection
+  get isWebSocket(): boolean {
+    return this.usingWebSocket;
   }
 
   // Check if Web Serial API is restricted by security policy
@@ -121,8 +141,36 @@ class SerialService {
   // Connect to the Arduino via Serial port
   async connect(selectedPort?: SerialPortInterface): Promise<boolean> {
     try {
-      // Reset mock data flag at the start of each connection attempt
+      // Reset flags at the start of each connection attempt
       this.useMockData = false;
+      this.usingWebSocket = false;
+      
+      // Check if accessing remotely - if so, prioritize WebSocket
+      const remoteAccess = this.isRemoteAccess();
+      
+      if (remoteAccess) {
+        console.log("Detected remote access, prioritizing WebSocket connection");
+        // Try WebSocket connection first for remote access
+        try {
+          const wsConnected = webSocketService.connect();
+          webSocketService.onData((data) => {
+            this.callbacks.forEach(callback => callback(data));
+          });
+          this.isConnected = true;
+          this.usingWebSocket = true;
+          console.log("Successfully connected via WebSocket for remote access");
+          return true;
+        } catch (wsError) {
+          console.error("WebSocket connection failed:", wsError);
+          if (this.autoDetectHardware) {
+            // Fall back to mock data if auto-detect is enabled
+            this.useMockData = true;
+            this.setupMockData();
+            return true;
+          }
+          throw new Error("Could not establish WebSocket connection and auto-detect is disabled");
+        }
+      }
       
       // If Web Serial API is restricted by security policy, handle accordingly
       if (this.isSupported && this.securityRestricted) {
@@ -136,6 +184,7 @@ class SerialService {
               this.callbacks.forEach(callback => callback(data));
             });
             this.isConnected = true;
+            this.usingWebSocket = true;
             return true;
           } catch (wsError) {
             console.log("WebSocket connection failed, using mock data...", wsError);
@@ -176,6 +225,7 @@ class SerialService {
             this.callbacks.forEach(callback => callback(data));
           });
           this.isConnected = true;
+          this.usingWebSocket = true;
           return true;
         } catch (wsError) {
           console.log("WebSocket connection failed, trying direct serial...", wsError);
@@ -346,6 +396,12 @@ class SerialService {
     
     // Stop mock data if it's running
     mockDataService.stopMockDataEmission();
+    
+    // Disconnect WebSocket if it's running
+    if (this.usingWebSocket) {
+      webSocketService.disconnect();
+      this.usingWebSocket = false;
+    }
     
     // Stop serial reader if it's running
     await serialReader.stopReading();

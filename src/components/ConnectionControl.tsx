@@ -4,7 +4,7 @@ import { Button } from "@/components/ui/button";
 import serialService from "@/services/SerialService";
 import { toast } from "sonner";
 import { Alert, AlertTitle, AlertDescription } from "@/components/ui/alert";
-import { Info, Zap, List, RefreshCcw, Shield, Wifi, WifiOff, Usb, Bug, AlertTriangle } from "lucide-react";
+import { Info, Zap, RefreshCcw, Shield, Wifi, WifiOff, Usb, Bug, AlertTriangle } from "lucide-react";
 import { Label } from "@/components/ui/label";
 import { Switch } from "@/components/ui/switch";
 import { Tooltip, TooltipContent, TooltipProvider, TooltipTrigger } from "@/components/ui/tooltip";
@@ -23,13 +23,17 @@ const ConnectionControl: React.FC<ConnectionControlProps> = ({
   const [connecting, setConnecting] = useState(false);
   const [autoDetect, setAutoDetect] = useState(serialService.autoDetect);
   const [usingMockData, setUsingMockData] = useState(false);
+  const [usingWebSocket, setUsingWebSocket] = useState(false);
   const [availablePorts, setAvailablePorts] = useState<SerialPortInfo[]>([]);
   const [selectedPortId, setSelectedPortId] = useState<string>("");
   const [loadingPorts, setLoadingPorts] = useState(false);
   const isWebSerialSupported = serialService.isSupported;
   const isSecurityRestricted = serialService.isSecurityRestricted;
   const isRaspberryPi = window.location.hostname === 'raspberrypi.local' || 
-                        window.location.hostname.startsWith('192.168.');
+                        window.location.hostname.startsWith('192.168.') ||
+                        window.location.hostname === 'localhost';
+  const isRemoteAccess = window.location.hostname !== 'localhost' && 
+                         window.location.hostname !== '127.0.0.1';
   
   useEffect(() => {
     // Listen for Arduino errors
@@ -94,12 +98,17 @@ const ConnectionControl: React.FC<ConnectionControlProps> = ({
       
       if (success) {
         setUsingMockData(serialService.isMockData);
+        setUsingWebSocket(serialService.isWebSocket);
         
         if (serialService.isMockData) {
           toast.info("Using simulated data", {
             description: autoDetect ? 
               "No hardware detected, using mock data instead" : 
               "Web Serial API not supported, using mock data instead"
+          });
+        } else if (serialService.isWebSocket) {
+          toast.success("Connected via WebSocket", {
+            description: "Now receiving data from the Raspberry Pi's Arduino"
           });
         } else {
           toast.success("Connected to Arduino", {
@@ -127,6 +136,7 @@ const ConnectionControl: React.FC<ConnectionControlProps> = ({
       await serialService.disconnect();
       toast.info("Disconnected from device");
       setUsingMockData(false);
+      setUsingWebSocket(false);
     } catch (error) {
       console.error("Disconnection error:", error);
     }
@@ -137,10 +147,37 @@ const ConnectionControl: React.FC<ConnectionControlProps> = ({
     serialService.autoDetect = checked;
   };
   
+  const getConnectionTypeText = () => {
+    if (!isConnected) return "Disconnected";
+    if (usingMockData) return "Connected (Mock Data)";
+    if (usingWebSocket) return "Connected (WebSocket)";
+    return "Connected (Direct Serial)";
+  };
+  
+  const getConnectionTypeColor = () => {
+    if (!isConnected) return "bg-gray-400";
+    if (usingMockData) return "bg-yellow-500";
+    if (usingWebSocket) return "bg-blue-500";
+    return "bg-green-500";
+  };
+  
   return (
     <div className="space-y-4 my-4">
+      {/* Remote access specific message */}
+      {isRemoteAccess && (
+        <Alert variant="default" className="mb-4 border-blue-400 text-blue-800 bg-blue-50">
+          <Wifi className="h-4 w-4" />
+          <AlertTitle>Remote Access Detected</AlertTitle>
+          <AlertDescription>
+            You are accessing this dashboard from a different device than the one hosting it.
+            The system will automatically use the WebSocket connection to access the Arduino 
+            connected to the Raspberry Pi.
+          </AlertDescription>
+        </Alert>
+      )}
+
       {/* Raspberry Pi specific message */}
-      {isRaspberryPi && (
+      {isRaspberryPi && !isRemoteAccess && (
         <Alert variant="default" className="mb-4 border-blue-400 text-blue-800 bg-blue-50">
           <Wifi className="h-4 w-4" />
           <AlertTitle>Running on Raspberry Pi</AlertTitle>
@@ -156,7 +193,7 @@ const ConnectionControl: React.FC<ConnectionControlProps> = ({
         </Alert>
       )}
 
-      {!isWebSerialSupported && (
+      {!isWebSerialSupported && !isRemoteAccess && (
         <Alert variant="destructive" className="mb-4">
           <Info className="h-4 w-4" />
           <AlertTitle>Web Serial API not supported</AlertTitle>
@@ -180,7 +217,7 @@ const ConnectionControl: React.FC<ConnectionControlProps> = ({
         </Alert>
       )}
       
-      {isWebSerialSupported && isSecurityRestricted && (
+      {isWebSerialSupported && isSecurityRestricted && !isRemoteAccess && (
         <Alert variant="default" className="mb-4 border-yellow-400 text-yellow-800 bg-yellow-50">
           <Shield className="h-4 w-4" />
           <AlertTitle>Web Serial API restricted</AlertTitle>
@@ -203,7 +240,7 @@ const ConnectionControl: React.FC<ConnectionControlProps> = ({
       
       <div className="flex flex-col space-y-4 sm:space-y-0">
         {/* Port selection section */}
-        {isWebSerialSupported && !isSecurityRestricted && !autoDetect && (
+        {isWebSerialSupported && !isSecurityRestricted && !autoDetect && !isRemoteAccess && (
           <div className="flex flex-col space-y-2 sm:flex-row sm:items-center sm:space-y-0 sm:space-x-4 mb-4">
             <div className="flex-1">
               <Label htmlFor="port-select" className="mb-2 block">Serial Port</Label>
@@ -251,7 +288,7 @@ const ConnectionControl: React.FC<ConnectionControlProps> = ({
                 onClick={handleConnect}
                 variant="default"
                 className="bg-hydro-blue hover:bg-hydro-blue/90"
-                disabled={connecting || (!autoDetect && !selectedPortId && availablePorts.length > 0 && !isSecurityRestricted)}
+                disabled={connecting || (!autoDetect && !selectedPortId && availablePorts.length > 0 && !isSecurityRestricted && !isRemoteAccess)}
               >
                 {connecting ? 'Connecting...' : 'Connect to Arduino'}
               </Button>
@@ -267,10 +304,10 @@ const ConnectionControl: React.FC<ConnectionControlProps> = ({
             
             <div className="flex items-center">
               <div 
-                className={`mr-2 w-3 h-3 rounded-full ${isConnected ? 'bg-green-500' : 'bg-gray-400'}`}
+                className={`mr-2 w-3 h-3 rounded-full ${getConnectionTypeColor()}`}
               ></div>
               <span className="text-sm text-gray-600">
-                {isConnected ? (usingMockData ? "Connected (Mock Data)" : "Connected") : "Disconnected"}
+                {getConnectionTypeText()}
               </span>
             </div>
           </div>
@@ -280,15 +317,18 @@ const ConnectionControl: React.FC<ConnectionControlProps> = ({
               id="auto-detect" 
               checked={autoDetect}
               onCheckedChange={handleAutoDetectChange}
+              disabled={isRemoteAccess} // Disable when accessing remotely
             />
-            <Label htmlFor="auto-detect">Auto-detect hardware</Label>
+            <Label htmlFor="auto-detect" className={isRemoteAccess ? "text-gray-400" : ""}>Auto-detect hardware</Label>
             <TooltipProvider>
               <Tooltip>
                 <TooltipTrigger asChild>
                   <Info className="h-4 w-4 text-gray-400 cursor-help" />
                 </TooltipTrigger>
                 <TooltipContent>
-                  When enabled, the system will automatically switch between real Arduino data and mock data
+                  {isRemoteAccess 
+                    ? "When accessing remotely, WebSocket connection is always used"
+                    : "When enabled, the system will automatically switch between real Arduino data and mock data"}
                 </TooltipContent>
               </Tooltip>
             </TooltipProvider>
