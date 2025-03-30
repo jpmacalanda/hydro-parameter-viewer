@@ -2,9 +2,11 @@
 FROM python:3.9-slim
 WORKDIR /app
 
-# Install required packages
+# Install required packages including build essentials for netifaces
 RUN apt-get update && apt-get install -y \
     python3-serial \
+    build-essential \
+    python3-dev \
     && rm -rf /var/lib/apt/lists/*
 
 RUN pip install websockets asyncio pyserial netifaces
@@ -17,3 +19,4 @@ COPY hydroponics_server.py .
 
 # Run the server
 CMD ["python3", "hydroponics_server.py"]
+

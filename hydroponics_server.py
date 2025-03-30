@@ -1,4 +1,3 @@
-
 import asyncio
 import serial
 import websockets
@@ -382,14 +381,16 @@ async def main():
             logger.info("  netifaces package not available, skipping interface enumeration")
         except Exception as e:
             logger.error(f"Error enumerating network interfaces: {e}")
-            
+        
+        # Important: Updated WebSocket server creation with proper origins to handle all connections
         server = await websockets.serve(
-            websocket_handler,  # Use the WebSocket-specific handler
+            websocket_handler,
             "0.0.0.0", 
             WS_PORT, 
             ssl=ssl_context,
             ping_interval=None,  # Disable automatic ping as we're implementing our own
-            process_request=http_handler  # Add HTTP request handler for regular requests
+            process_request=http_handler,  # Add HTTP request handler for regular requests
+            origins=None  # Allow connections from any origin
         )
         
         logger.info(f"Server running on port {WS_PORT} {'with SSL' if ssl_context else 'without SSL'}")
