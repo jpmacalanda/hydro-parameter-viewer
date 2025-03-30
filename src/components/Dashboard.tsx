@@ -1,4 +1,3 @@
-
 import React, { useState, useEffect } from 'react';
 import PHDisplay from './PHDisplay';
 import TemperatureDisplay from './TemperatureDisplay';
@@ -15,6 +14,7 @@ import { SerialData } from '@/services/types/serial.types';
 import serialService from '@/services/SerialService';
 import SystemLogs from './SystemLogs';
 import FeatureSettings from './FeatureSettings';
+import ArchiveSettings from './ArchiveSettings';
 
 const Dashboard: React.FC = () => {
   const [sensorData, setSensorData] = useState<SerialData>({
@@ -43,6 +43,10 @@ const Dashboard: React.FC = () => {
     showSerialMonitor: true,
   });
   
+  // Track data history for CSV export (limited to last 100 readings)
+  const [dataHistory, setDataHistory] = useState<SerialData[]>([]);
+  const MAX_HISTORY_LENGTH = 100;
+  
   // Generate sample data for historical graphs
   const [phHistory, setPhHistory] = useState(Array.from({length: 24}, (_, i) => ({
     time: `${i}:00`,
@@ -64,6 +68,15 @@ const Dashboard: React.FC = () => {
     serialService.onData((data) => {
       setSensorData(data);
       setLastUpdate(new Date());
+      
+      // Update data history for CSV export (keep last 100 items)
+      setDataHistory(prevHistory => {
+        const newHistory = [...prevHistory, data];
+        if (newHistory.length > MAX_HISTORY_LENGTH) {
+          return newHistory.slice(-MAX_HISTORY_LENGTH);
+        }
+        return newHistory;
+      });
     });
 
     // Subscribe to connection status changes
@@ -122,13 +135,14 @@ const Dashboard: React.FC = () => {
       {/* Tabbed interface for advanced features */}
       <div className="mt-6">
         <Tabs defaultValue="statistics">
-          <TabsList className="grid w-full grid-cols-4">
+          <TabsList className="grid w-full grid-cols-5">
             {features.showStatistics && <TabsTrigger value="statistics">Statistics</TabsTrigger>}
             {features.showThresholds && <TabsTrigger value="thresholds">Thresholds</TabsTrigger>}
             {(features.showSystemLogs || features.showSerialMonitor) && 
               <TabsTrigger value="diagnostics">Diagnostics</TabsTrigger>
             }
             <TabsTrigger value="settings">Settings</TabsTrigger>
+            <TabsTrigger value="archive">Archive</TabsTrigger>
           </TabsList>
           
           {features.showStatistics && (
@@ -168,6 +182,10 @@ const Dashboard: React.FC = () => {
           
           <TabsContent value="settings" className="mt-6">
             <FeatureSettings features={features} setFeatures={setFeatures} />
+          </TabsContent>
+          
+          <TabsContent value="archive" className="mt-6">
+            <ArchiveSettings sensorData={sensorData} dataHistory={dataHistory} />
           </TabsContent>
         </Tabs>
       </div>
