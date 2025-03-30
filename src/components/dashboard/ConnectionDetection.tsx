@@ -20,7 +20,7 @@ const ConnectionDetection: React.FC<ConnectionDetectionProps> = ({
       addNotification(
         'info', 
         'Remote Access Detected', 
-        'You are accessing this dashboard from a different device than the one hosting it. The system will automatically use the WebSocket connection to access the Arduino connected to the Raspberry Pi.'
+        'You are accessing this dashboard from a different device than the one hosting it. The system will automatically use the logs to access the Arduino data.'
       );
     }
     
@@ -48,7 +48,7 @@ const ConnectionDetection: React.FC<ConnectionDetectionProps> = ({
           '- Arduino is sending data in the format: pH:6.20,temp:23.20,water:medium,tds:652\n' +
           '- Correct port is selected (/dev/ttyUSB0 on Raspberry Pi)\n' +
           '- Baud rate matches (9600)\n' +
-          '- Server logs for errors (if using WebSocket)'
+          '- Server logs for errors'
         );
       }, 10000); // Give it 10 seconds to receive data
       

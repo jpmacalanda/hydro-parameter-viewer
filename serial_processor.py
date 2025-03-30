@@ -4,7 +4,6 @@ import serial
 import json
 import time
 import logging
-import websockets
 import subprocess
 from typing import Set, Dict, Union, Any
 import os
@@ -12,9 +11,6 @@ import os
 import settings
 
 logger = logging.getLogger("hydroponics_server")
-
-# Will be set from websocket_handler
-connected_clients: Set[websockets.WebSocketServerProtocol] = set()
 
 # Serial connection object
 ser = None
@@ -30,7 +26,7 @@ def initialize_serial():
         serial_monitor_active = 'hydroponics-serial-monitor' in running_containers
         
         if serial_monitor_active:
-            logger.warning("Serial Monitor container is active - WebSocket will use log data")
+            logger.warning("Serial Monitor container is active - Using log data")
             return None
     except Exception as e:
         logger.error(f"Error checking container status: {e}")
@@ -91,36 +87,6 @@ def initialize_serial():
             logger.info("Falling back to sample data mode from logs")
             return None
 
-async def send_data_to_clients(data: Dict[str, Any]):
-    """Send data to all connected clients"""
-    if not connected_clients:
-        logger.debug("No clients connected, skipping data send")
-        return
-        
-    message = json.dumps(data)
-    websockets_to_remove = set()
-    client_count = len(connected_clients)
-    
-    for client in connected_clients:
-        try:
-            client_address = client.remote_address if hasattr(client, 'remote_address') else 'Unknown'
-            client_ip = client_address[0] if isinstance(client_address, tuple) and len(client_address) > 0 else 'Unknown IP'
-            await client.send(message)
-            logger.debug(f"Sent data to client {client_ip}")
-        except websockets.exceptions.ConnectionClosed as e:
-            logger.info(f"Connection closed during send: Code {e.code}, Reason: {e.reason}")
-            websockets_to_remove.add(client)
-        except Exception as e:
-            logger.error(f"Error sending data: {e}")
-            websockets_to_remove.add(client)
-    
-    # Remove any closed connections
-    if websockets_to_remove:
-        connected_clients.difference_update(websockets_to_remove)
-        logger.info(f"Removed {len(websockets_to_remove)} closed connections")
-        
-    logger.info(f"Sent data to {client_count} clients: {message}")
-
 async def use_sample_data():
     """Send consistent sample data when no real data is available"""
     logger.info("Using sample data from logs")
@@ -140,8 +106,7 @@ async def use_sample_data():
         # Convert waterLevel to lowercase to match expected format
         data["waterLevel"] = data["waterLevel"].lower()
         
-        await send_data_to_clients(data)
-        logger.info(f"Sent sample data to clients: {json.dumps(data)}")
+        logger.info(f"Sample data: {json.dumps(data)}")
         
         index += 1
         await asyncio.sleep(2)  # Send data every 2 seconds
@@ -234,9 +199,9 @@ async def read_serial():
                                 except ValueError:
                                     logger.error(f"Invalid TDS value: {value}")
                     
-                    # Only send if we have a valid data structure
+                    # Only log if we have a valid data structure
                     if 'ph' in parsed_data and 'temperature' in parsed_data and 'waterLevel' in parsed_data and 'tds' in parsed_data:
-                        await send_data_to_clients(parsed_data)
+                        logger.info(f"Parsed data: {json.dumps(parsed_data)}")
                     else:
                         logger.warning(f"Incomplete or invalid data: {parsed_data}")
                         logger.warning(f"Expected format: pH:6.20,temp:23.20,water:medium,tds:652")

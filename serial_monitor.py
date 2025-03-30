@@ -32,12 +32,11 @@ logger = logging.getLogger("serial_monitor")
 # Serial port configuration
 SERIAL_PORT = os.environ.get('SERIAL_PORT', '/dev/ttyUSB0')
 BAUD_RATE = int(os.environ.get('BAUD_RATE', 9600))
-MOCK_DATA = os.environ.get('MOCK_DATA', 'false').lower() == 'true'
 MAX_RETRIES = int(os.environ.get('MAX_RETRIES', 5))
 RETRY_DELAY = int(os.environ.get('RETRY_DELAY', 3))
 
 def main():
-    logger.info(f"Serial Monitor starting with: PORT={SERIAL_PORT}, BAUD={BAUD_RATE}, MOCK={MOCK_DATA}")
+    logger.info(f"Serial Monitor starting with: PORT={SERIAL_PORT}, BAUD={BAUD_RATE}")
     
     # Try to connect to serial port with retries
     retries = 0
@@ -66,7 +65,6 @@ def main():
                 time.sleep(RETRY_DELAY)
             else:
                 logger.error(f"Maximum retries ({MAX_RETRIES}) reached. Using sample data.")
-                # Use sample data instead of mock data to keep logs consistent
                 logger.info("Using sample data format for compatibility")
                 sample_data_loop()
                 return
