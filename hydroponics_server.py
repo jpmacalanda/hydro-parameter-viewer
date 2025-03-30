@@ -52,7 +52,16 @@ async def handle_client(websocket, path):
             await websocket.send("healthy")
             return
             
-        await websocket.wait_closed()
+        # Stay in this loop to handle incoming messages
+        async for message in websocket:
+            if message == "ping":
+                print(f"Received ping from {websocket.remote_address}, sending pong")
+                await websocket.send("pong")
+            
+    except websockets.exceptions.ConnectionClosed:
+        print(f"Connection closed by client: {websocket.remote_address}")
+    except Exception as e:
+        print(f"Error handling client: {e}")
     finally:
         connected_clients.remove(websocket)
         print(f"Client disconnected: {websocket.remote_address}")
@@ -84,12 +93,23 @@ async def generate_mock_data():
         
         if connected_clients:
             message = json.dumps(data)
-            await asyncio.gather(
-                *(client.send(message) for client in connected_clients)
-            )
+            websockets_to_remove = set()
+            
+            for client in connected_clients:
+                try:
+                    await client.send(message)
+                except websockets.exceptions.ConnectionClosed:
+                    websockets_to_remove.add(client)
+                except Exception as e:
+                    print(f"Error sending mock data: {e}")
+                    websockets_to_remove.add(client)
+            
+            # Remove any closed connections
+            connected_clients.difference_update(websockets_to_remove)
+                
             print(f"Sent mock data to {len(connected_clients)} clients: {message}")
         
-        await asyncio.sleep(1)
+        await asyncio.sleep(2)  # Send data every 2 seconds
 
 async def read_serial():
     if MOCK_DATA:
@@ -120,9 +140,20 @@ async def read_serial():
                     if data and connected_clients:
                         # Send data to all connected clients
                         message = json.dumps(data)
-                        await asyncio.gather(
-                            *(client.send(message) for client in connected_clients)
-                        )
+                        
+                        websockets_to_remove = set()
+                        for client in connected_clients:
+                            try:
+                                await client.send(message)
+                            except websockets.exceptions.ConnectionClosed:
+                                websockets_to_remove.add(client)
+                            except Exception as e:
+                                print(f"Error sending serial data: {e}")
+                                websockets_to_remove.add(client)
+                        
+                        # Remove any closed connections
+                        connected_clients.difference_update(websockets_to_remove)
+                            
                         print(f"Sent to {len(connected_clients)} clients: {message}")
             except Exception as e:
                 print(f"Error reading/processing serial data: {e}")
@@ -132,6 +163,7 @@ async def health_server(websocket, path):
     """Simple health check endpoint"""
     if path == "/health":
         await websocket.send("healthy")
+        await handle_client(websocket, path)  # Continue handling other messages
     else:
         # Forward to the main handler for normal WebSocket connections
         await handle_client(websocket, path)
@@ -168,7 +200,8 @@ async def main():
         health_server,  # Use the health-aware handler
         "0.0.0.0", 
         WS_PORT, 
-        ssl=ssl_context
+        ssl=ssl_context,
+        ping_interval=None  # Disable automatic ping as we're implementing our own
     )
     
     print(f"WebSocket server running on port {WS_PORT} {'with SSL' if ssl_context else 'without SSL'}")

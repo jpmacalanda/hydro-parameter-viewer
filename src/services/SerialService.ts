@@ -10,6 +10,7 @@ import {
 import webSocketService from './WebSocketService';
 import mockDataService from './MockDataService';
 import serialReader from './SerialReader';
+import { toast } from "sonner";
 
 class SerialService {
   private isConnected: boolean = false;
@@ -22,6 +23,8 @@ class SerialService {
   private useMockData: boolean = false;
   private securityRestricted: boolean = false;
   private usingWebSocket: boolean = false;
+  private dataCheckTimer: ReturnType<typeof setTimeout> | null = null;
+  private hasReceivedData = false;
 
   constructor() {
     // Check if we're running on the Raspberry Pi
@@ -35,6 +38,36 @@ class SerialService {
     
     // Check if Web Serial API is restricted by security policy
     this.checkSecurityRestrictions();
+    
+    // Listen for WebSocket errors
+    document.addEventListener('websocket-error', (event: Event) => {
+      const customEvent = event as CustomEvent;
+      
+      // Only show a toast if we're actually using WebSocket
+      if (this.usingWebSocket) {
+        toast.error(customEvent.detail.message, {
+          description: "Check network connection or server logs"
+        });
+        
+        // Attempt to reconnect or fallback to mock data
+        if (this.autoDetectHardware && customEvent.detail.message.includes("timeout")) {
+          console.log("WebSocket timeout detected, attempting to reconnect or fallback");
+          this.reconnectOrFallback();
+        }
+      }
+    });
+  }
+  
+  private reconnectOrFallback(): void {
+    // Disconnect current connections
+    this.disconnect().then(() => {
+      // Try connecting again - this will try WebSocket first then fall back to mock if needed
+      this.connect().catch(() => {
+        console.log("Reconnection failed, falling back to mock data");
+        this.useMockData = true;
+        this.setupMockData();
+      });
+    });
   }
 
   // Check if we're running on the Raspberry Pi or another device on the network
@@ -187,32 +220,37 @@ class SerialService {
       if (this.isSupported && this.securityRestricted) {
         console.warn("Web Serial API is restricted by security policy");
         
-        if (this.autoDetectHardware) {
-          // If auto-detect is enabled, try WebSocket or fall back to mock data
-          try {
-            webSocketService.connect();
-            webSocketService.onData((data) => {
-              this.callbacks.forEach(callback => callback(data));
-            });
-            this.isConnected = true;
-            this.usingWebSocket = true;
-            return true;
-          } catch (wsError) {
-            console.log("WebSocket connection failed, using mock data...", wsError);
+        // Always try WebSocket first for Lovable preview
+        console.log("Trying WebSocket connection due to security restrictions");
+        try {
+          webSocketService.connect();
+          webSocketService.onData((data) => {
+            this.callbacks.forEach(callback => callback(data));
+          });
+          webSocketService.onError((error) => {
+            this.handleError(error);
+          });
+          this.isConnected = true;
+          this.usingWebSocket = true;
+          
+          // Set up data receipt check
+          this.setupDataReceiptCheck();
+          
+          return true;
+        } catch (wsError) {
+          console.log("WebSocket connection failed, using mock data...", wsError);
+          if (this.autoDetectHardware) {
             this.useMockData = true;
             this.setupMockData();
             return true;
+          } else {
+            throw new Error("Web Serial API is restricted and WebSocket connection failed");
           }
-        } else {
-          // If auto-detect is disabled, respect the user's preference
-          throw new Error("Web Serial API is restricted by security policy");
         }
       }
       
-      // Rest of the connection logic
-      
+      // If we're on the Raspberry Pi, try to use WebSocket or direct Serial connection
       if (this.isRaspberryPi) {
-        // If we're on the Raspberry Pi, try to use WebSocket or direct Serial connection
         if (!this.autoDetectHardware) {
           // If auto-detect is disabled, respect the user's preference
           if (!this.isSupported) {
@@ -230,13 +268,21 @@ class SerialService {
         }
         
         // Auto-detect is enabled, try WebSocket first
+        console.log("On Raspberry Pi with auto-detect enabled, trying WebSocket first");
         try {
           webSocketService.connect();
           webSocketService.onData((data) => {
             this.callbacks.forEach(callback => callback(data));
           });
+          webSocketService.onError((error) => {
+            this.handleError(error);
+          });
           this.isConnected = true;
           this.usingWebSocket = true;
+          
+          // Set up data receipt check
+          this.setupDataReceiptCheck();
+          
           return true;
         } catch (wsError) {
           console.log("WebSocket connection failed, trying direct serial...", wsError);
@@ -259,6 +305,13 @@ class SerialService {
               }
               throw serialError;
             }
+          }
+          
+          // If both WebSocket and Serial failed and auto-detect is enabled, use mock data
+          if (this.autoDetectHardware) {
+            this.useMockData = true;
+            this.setupMockData();
+            return true;
           }
         }
       } else {
@@ -293,7 +346,7 @@ class SerialService {
         }
       }
       
-      // If we reach here and explicitly want to fall back to mock data
+      // If we reach here and auto-detect is enabled, fall back to mock data
       if (this.autoDetectHardware) {
         console.log("Using mock data instead of real hardware.");
         this.useMockData = true;
@@ -316,9 +369,6 @@ class SerialService {
   }
   
   // Set up a data receipt check to ensure we're actually getting data
-  private dataCheckTimer: ReturnType<typeof setTimeout> | null = null;
-  private hasReceivedData = false;
-  
   private setupDataReceiptCheck() {
     // Clear any existing timer
     if (this.dataCheckTimer) {
@@ -329,7 +379,8 @@ class SerialService {
     this.hasReceivedData = false;
     
     // Set a flag when we receive data
-    const dataCheckCallback = () => {
+    const dataCheckCallback = (data: SerialData) => {
+      console.log("Received first data:", data);
       this.hasReceivedData = true;
       
       // Remove this temporary callback after first data receipt
@@ -350,20 +401,7 @@ class SerialService {
         // If using WebSocket but not receiving data, try to reconnect
         if (this.usingWebSocket) {
           console.log("WebSocket connected but no data received, attempting to reconnect...");
-          
-          // Force disconnect and try again
-          this.disconnect().then(() => {
-            // Try again with WebSocket (will auto-fallback to mock data if it fails)
-            this.connect().catch(error => {
-              console.error("Reconnection failed:", error);
-              
-              // If auto-detect is enabled, fall back to mock data
-              if (this.autoDetectHardware) {
-                this.useMockData = true;
-                this.setupMockData();
-              }
-            });
-          });
+          this.handleError(new Error("No data received from WebSocket (timeout)"));
         }
       }
     }, 10000);
@@ -398,14 +436,7 @@ class SerialService {
         this.usingWebSocket && 
         error.message.includes("timeout")) {
       
-      this.disconnect().then(() => {
-        // Try one more time with WebSocket
-        this.connect().catch(() => {
-          // If it fails again, use mock data
-          this.useMockData = true;
-          this.setupMockData();
-        });
-      });
+      this.reconnectOrFallback();
     }
   }
 

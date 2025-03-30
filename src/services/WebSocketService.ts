@@ -1,4 +1,3 @@
-
 type DataCallback = (data: {
   ph: number;
   temperature: number;
@@ -13,15 +12,26 @@ class WebSocketService {
   private callbacks: DataCallback[] = [];
   private errorCallbacks: ErrorCallback[] = [];
   private reconnectAttempts = 0;
-  private maxReconnectAttempts = 5;
+  private maxReconnectAttempts = 10;
   private isConnected = false;
   private lastMessageTime = 0;
   private healthCheckInterval: ReturnType<typeof setInterval> | null = null;
+  private reconnectTimer: ReturnType<typeof setTimeout> | null = null;
   
   connect(serverUrl: string = this.getDefaultWebSocketUrl()) {
+    if (this.reconnectTimer) {
+      clearTimeout(this.reconnectTimer);
+      this.reconnectTimer = null;
+    }
+    
     console.log(`Attempting WebSocket connection to: ${serverUrl}`);
     
     try {
+      if (this.ws) {
+        this.ws.close();
+        this.ws = null;
+      }
+      
       this.ws = new WebSocket(serverUrl);
       
       this.ws.onopen = () => {
@@ -30,13 +40,16 @@ class WebSocketService {
         this.reconnectAttempts = 0;
         this.lastMessageTime = Date.now();
         
-        // Set up health check interval
+        if (this.ws && this.ws.readyState === WebSocket.OPEN) {
+          this.ws.send('ping');
+          console.log('Sent initial ping');
+        }
+        
         this.startHealthCheck();
       };
       
       this.ws.onmessage = (event) => {
         try {
-          // Update last message time for health check
           this.lastMessageTime = Date.now();
           
           if (event.data === "healthy") {
@@ -44,7 +57,13 @@ class WebSocketService {
             return;
           }
           
+          if (event.data === "pong") {
+            console.log("Received pong response");
+            return;
+          }
+          
           const data = JSON.parse(event.data);
+          console.log("Received data:", data);
           this.callbacks.forEach(callback => callback(data));
         } catch (error) {
           console.error('Error parsing WebSocket data:', error);
@@ -58,10 +77,10 @@ class WebSocketService {
         this.stopHealthCheck();
         
         if (this.reconnectAttempts < this.maxReconnectAttempts) {
-          const delay = Math.min(1000 * Math.pow(2, this.reconnectAttempts), 10000);
+          const delay = Math.min(1000 * Math.pow(1.5, this.reconnectAttempts), 30000);
           console.log(`Attempting to reconnect in ${delay}ms (attempt ${this.reconnectAttempts + 1}/${this.maxReconnectAttempts})`);
           
-          setTimeout(() => {
+          this.reconnectTimer = setTimeout(() => {
             this.reconnectAttempts++;
             this.connect(serverUrl);
           }, delay);
@@ -75,7 +94,6 @@ class WebSocketService {
         console.error('WebSocket error:', error);
         this.notifyError(new Error('WebSocket connection error'));
         
-        // Try fallback to non-secure connection if secure connection fails
         if (serverUrl.startsWith('wss:') && this.reconnectAttempts === 0) {
           console.log('Secure WebSocket connection failed, trying fallback to non-secure...');
           const fallbackUrl = serverUrl.replace('wss:', 'ws:');
@@ -84,12 +102,12 @@ class WebSocketService {
         }
       };
       
-      // Send a ping message every 30 seconds to keep the connection alive
       setInterval(() => {
         if (this.isConnected && this.ws && this.ws.readyState === WebSocket.OPEN) {
           this.ws.send('ping');
+          console.log('Sent ping message');
         }
-      }, 30000);
+      }, 15000);
       
       return true;
     } catch (error) {
@@ -100,25 +118,26 @@ class WebSocketService {
   }
   
   private getDefaultWebSocketUrl(): string {
-    // For Raspberry Pi direct connection, always use HTTP/ws protocol
-    // because self-signed certificates won't be trusted anyway
+    console.log("Getting default WebSocket URL");
     if (this.isRaspberryPi()) {
       const hostname = window.location.hostname;
-      return `ws://${hostname}:8081`;
+      const url = `ws://${hostname}:8081`;
+      console.log(`Using Raspberry Pi URL: ${url}`);
+      return url;
     }
     
-    // Determine protocol based on current page protocol
     const protocol = window.location.protocol === 'https:' ? 'wss:' : 'ws:';
     
-    // For Docker setups, use relative path
     if (window.location.hostname !== 'localhost' && window.location.hostname !== '127.0.0.1') {
-      // Try the /ws path which is proxied through NGINX
-      return `${protocol}//${window.location.host}/ws`;
+      const url = `${protocol}//${window.location.host}/ws`;
+      console.log(`Using proxied URL: ${url}`);
+      return url;
     }
     
-    // For development, connect directly to the WebSocket port
     const port = '8081';
-    return `${protocol}//${window.location.hostname}:${port}`;
+    const url = `${protocol}//${window.location.hostname}:${port}`;
+    console.log(`Using development URL: ${url}`);
+    return url;
   }
   
   isWebSocketConnected(): boolean {
@@ -126,9 +145,12 @@ class WebSocketService {
   }
   
   private isRaspberryPi(): boolean {
-    return window.location.hostname === 'raspberrypi.local' || 
-           window.location.hostname.startsWith('192.168.') ||
-           window.location.hostname === 'localhost';
+    const hostname = window.location.hostname;
+    const isRpi = hostname === 'raspberrypi.local' || 
+           hostname.startsWith('192.168.') ||
+           hostname === 'localhost';
+    console.log(`Checking if Raspberry Pi: ${hostname} -> ${isRpi}`);
+    return isRpi;
   }
   
   onData(callback: DataCallback) {
@@ -142,7 +164,6 @@ class WebSocketService {
   private notifyError(error: Error) {
     this.errorCallbacks.forEach(callback => callback(error));
     
-    // Also dispatch a custom event
     const event = new CustomEvent('websocket-error', { 
       detail: { message: error.message, error } 
     });
@@ -151,6 +172,11 @@ class WebSocketService {
   
   disconnect() {
     this.stopHealthCheck();
+    
+    if (this.reconnectTimer) {
+      clearTimeout(this.reconnectTimer);
+      this.reconnectTimer = null;
+    }
     
     if (this.ws) {
       this.ws.close();
@@ -163,23 +189,18 @@ class WebSocketService {
   }
   
   private startHealthCheck() {
-    this.stopHealthCheck(); // Clear any existing interval
+    this.stopHealthCheck();
     this.lastMessageTime = Date.now();
     
-    // Check every 5 seconds if we've received any data recently
     this.healthCheckInterval = setInterval(() => {
       const now = Date.now();
-      // If no message for 15 seconds, consider connection stale
-      if (now - this.lastMessageTime > 15000) {
-        console.warn('No data received from WebSocket in the last 15 seconds');
+      if (now - this.lastMessageTime > 20000) {
+        console.warn('No data received from WebSocket in the last 20 seconds');
         this.notifyError(new Error('No data received from server (timeout)'));
         
-        // If the connection appears stale but WebSocket still shows as connected,
-        // force a reconnection
         if (this.isConnected && this.ws && this.ws.readyState === WebSocket.OPEN) {
           console.log('Forcing WebSocket reconnection due to stale connection');
           this.ws.close();
-          // The onclose handler will trigger a reconnection
         }
       }
     }, 5000);
