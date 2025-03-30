@@ -10,14 +10,17 @@ FROM nginx:alpine
 COPY --from=builder /app/dist /usr/share/nginx/html
 COPY docker/nginx.conf /etc/nginx/conf.d/default.conf
 
+# Remove the default nginx configuration
+RUN rm -f /etc/nginx/conf.d/default.conf
+
 # Create SSL directory
 RUN mkdir -p /etc/nginx/ssl
 
-# Generate self-signed certificate if none exists
-RUN apk add --no-cache openssl && \
-    openssl req -x509 -nodes -days 365 -newkey rsa:2048 \
-    -keyout /etc/nginx/ssl/nginx.key -out /etc/nginx/ssl/nginx.crt \
-    -subj "/C=US/ST=State/L=City/O=Organization/CN=localhost" || true
+# Don't generate certificates in the Dockerfile, they'll be mounted from host
+# Add startup script to check for certificates
+COPY docker-entrypoint.sh /docker-entrypoint.sh
+RUN chmod +x /docker-entrypoint.sh
 
 EXPOSE 80 443
+ENTRYPOINT ["/docker-entrypoint.sh"]
 CMD ["nginx", "-g", "daemon off;"]

@@ -9,6 +9,8 @@ services:
       - "443:443"
     volumes:
       - ./ssl:/etc/nginx/ssl
+    networks:
+      - hydroponics-network
     depends_on:
       - websocket
 
@@ -24,3 +26,9 @@ services:
       - ./ssl:/etc/nginx/ssl
     environment:
       - USE_SSL=true
+    networks:
+      - hydroponics-network
+
+networks:
+  hydroponics-network:
+    driver: bridge

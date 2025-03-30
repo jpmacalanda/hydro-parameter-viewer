@@ -49,6 +49,13 @@ class WebSocketService {
       
       this.ws.onerror = (error) => {
         console.error('WebSocket error:', error);
+        // Try fallback to non-secure connection if secure connection fails
+        if (serverUrl.startsWith('wss:') && this.reconnectAttempts === 0) {
+          console.log('Secure WebSocket connection failed, trying fallback to non-secure...');
+          const fallbackUrl = serverUrl.replace('wss:', 'ws:');
+          console.log(`Fallback URL: ${fallbackUrl}`);
+          setTimeout(() => this.connect(fallbackUrl), 1000);
+        }
       };
     } catch (error) {
       console.error('Error creating WebSocket:', error);
@@ -56,7 +63,16 @@ class WebSocketService {
   }
   
   private getDefaultWebSocketUrl(): string {
+    // Determine protocol based on current page protocol
     const protocol = window.location.protocol === 'https:' ? 'wss:' : 'ws:';
+    
+    // For Docker setups, use relative path
+    if (window.location.hostname !== 'localhost' && window.location.hostname !== '127.0.0.1') {
+      // Try the /ws path which is proxied through NGINX
+      return `${protocol}//${window.location.host}/ws`;
+    }
+    
+    // For development, connect directly to the WebSocket port
     const port = '8081';
     return `${protocol}//${window.location.hostname}:${port}`;
   }
