@@ -4,6 +4,7 @@ import http
 import json
 import websockets
 from datetime import datetime
+from websockets.http import Response
 
 logger = logging.getLogger("hydroponics_server")
 
@@ -23,22 +24,46 @@ async def http_handler(path, request_headers):
         ('Access-Control-Max-Age', '86400'),  # 24 hours
     ]
     
-    # Handle preflight OPTIONS requests - properly handle Request object
+    # Check if this is a proper HTTP request or a WebSocket upgrade request
+    is_websocket = False
     if isinstance(request_headers, websockets.datastructures.Headers):
-        # Cannot determine method from Headers object, skip OPTIONS check
-        pass
-    elif hasattr(request_headers, 'method'):
-        # Handle Request object
+        upgrade_header = request_headers.get("Upgrade", "").lower()
+        if upgrade_header == "websocket":
+            is_websocket = True
+            # Let the WebSocket handler take care of this
+            return None
+    
+    # Handle preflight OPTIONS requests
+    method = "GET"  # Default method
+    if hasattr(request_headers, 'method'):
         method = request_headers.method
-        if method == 'OPTIONS':
-            logger.info(f"Received OPTIONS request to {path}")
-            return http.HTTPStatus.OK, cors_headers, b""
+    elif isinstance(request_headers, dict) and 'method' in request_headers:
+        method = request_headers['method']
     
-    if path == '/health' or path == '/':
-        logger.info(f"Received HTTP request to {path}")
-        return http.HTTPStatus.OK, cors_headers, b"healthy\n"
+    if method == 'OPTIONS':
+        logger.info(f"Received OPTIONS request to {path}")
+        return http.HTTPStatus.OK, cors_headers, b""
     
-    if path == '/api/status':
+    # Fix for path strings vs objects
+    path_str = path
+    if not isinstance(path, str):
+        # Try to extract path from various possible formats
+        if hasattr(path, 'path'):
+            path_str = path.path
+        elif hasattr(path, 'target'):
+            path_str = path.target
+        else:
+            # Default fallback
+            path_str = '/health'
+            logger.warning(f"Could not determine path from: {path}, using default: {path_str}")
+    
+    # Simple health check
+    if path_str == '/health' or path_str == '/':
+        logger.info(f"Received HTTP request to {path_str}")
+        return Response(status_code=200, headers=cors_headers, body=b"healthy\n")
+    
+    # API endpoint
+    if path_str == '/api/status':
         # Example API endpoint that returns server status
         data = {
             "status": "running",
@@ -46,13 +71,17 @@ async def http_handler(path, request_headers):
             "connectedClients": len(connected_clients),
             "time": datetime.now().isoformat()
         }
-        return http.HTTPStatus.OK, [
+        
+        json_body = json.dumps(data).encode('utf-8')
+        json_headers = [
             ('Content-Type', 'application/json'),
             ('Access-Control-Allow-Origin', '*'),
-        ], json.dumps(data).encode('utf-8')
+        ]
+        
+        return Response(status_code=200, headers=json_headers, body=json_body)
     
     # For any other path, also return 200 OK with info
-    logger.info(f"Received HTTP request to unknown path: {path}")
+    logger.info(f"Received HTTP request to unknown path: {path_str}")
     body = (
         "Hydroponics Monitoring System WebSocket Server\n"
         "----------------------------------------\n"
@@ -64,4 +93,4 @@ async def http_handler(path, request_headers):
         "- /api/status    - Server status in JSON format\n"
     ).encode('utf-8')
     
-    return http.HTTPStatus.OK, cors_headers, body
+    return Response(status_code=200, headers=cors_headers, body=body)

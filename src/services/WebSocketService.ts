@@ -1,4 +1,3 @@
-
 type DataCallback = (data: {
   ph: number;
   temperature: number;
@@ -45,18 +44,15 @@ class WebSocketService {
             console.log(`[WebSocket] Fallback URL: ${fallbackUrl}`);
             setTimeout(() => this.connect(fallbackUrl), 1000);
           } else {
-            // If we're already on ws: and it failed, notify error
-            this.notifyError(new Error(`Server at ${serverUrl.replace('ws', 'http')} is not reachable. Check if the WebSocket server is running.`));
-            
-            // Try with explicit port 8081
-            if (!serverUrl.includes(':8081')) {
-              const hostPart = serverUrl.split('/')[2]; // Get the host part
-              if (hostPart) {
-                const hostWithoutPort = hostPart.split(':')[0]; // Remove any existing port
-                const newUrl = `ws://${hostWithoutPort}:8081`;
-                console.log(`[WebSocket] Trying with explicit port 8081: ${newUrl}`);
-                setTimeout(() => this.connect(newUrl), 2000);
-              }
+            // If we're already on ws: and it failed, try the alternative port
+            // Try with port 8082 if 8081 failed
+            if (serverUrl.includes(':8081')) {
+              const altUrl = serverUrl.replace(':8081', ':8082');
+              console.log(`[WebSocket] Trying alternative port: ${altUrl}`);
+              setTimeout(() => this.connect(altUrl), 1000);
+            } else {
+              // If all else fails, notify error
+              this.notifyError(new Error(`Server at ${serverUrl.replace('ws', 'http')} is not reachable. Check if the WebSocket server is running.`));
             }
           }
         }
@@ -69,65 +65,52 @@ class WebSocketService {
     try {
       // Convert WebSocket URL to HTTP URL for health check
       const httpUrl = wsUrl.replace('ws://', 'http://').replace('wss://', 'https://');
-      const healthUrl = `${httpUrl}/health`;
       
-      console.log(`[WebSocket] Checking server availability at ${healthUrl}`);
+      // Try multiple ports for health check
+      const baseUrl = httpUrl.split('/')[0] + '//' + httpUrl.split('/')[2].split(':')[0];
+      const healthUrls = [
+        `${httpUrl}/health`,                // Try original port with /health
+        `${baseUrl}:8082/health`,           // Try dedicated HTTP port
+        `${baseUrl}:${parseInt(httpUrl.split(':')[2] || '8081') + 1}/health` // Try port+1
+      ];
       
-      // Try multiple approaches to check server availability
-      try {
-        // First attempt: Standard fetch with no-cors mode
-        const response = await fetch(healthUrl, { 
-          method: 'GET',
-          mode: 'no-cors',
-          cache: 'no-cache',
-          headers: {
-            'Accept': 'text/plain',
-          },
-          signal: AbortSignal.timeout(3000)
-        });
-        
-        console.log(`[WebSocket] Server health check response:`, response);
-        return true;
-      } catch (error) {
-        console.warn(`[WebSocket] First health check attempt failed:`, error);
-        
-        // Second attempt: Try alternative health check URL
+      console.log(`[WebSocket] Checking server availability at: ${healthUrls.join(', ')}`);
+      
+      // Try each URL until one succeeds
+      for (const url of healthUrls) {
         try {
-          const altPort = httpUrl.includes(':8081') ? httpUrl.replace(':8081', ':8082') : `${httpUrl}:8082`;
-          const altHealthUrl = `${altPort}/health`;
-          console.log(`[WebSocket] Trying alternative health URL: ${altHealthUrl}`);
-          
-          await fetch(altHealthUrl, { 
+          console.log(`[WebSocket] Trying health check URL: ${url}`);
+          const response = await fetch(url, { 
             method: 'GET',
             mode: 'no-cors',
             cache: 'no-cache',
             signal: AbortSignal.timeout(2000)
           });
           
-          console.log(`[WebSocket] Alternative health check succeeded`);
+          console.log(`[WebSocket] Health check succeeded for ${url}`);
           return true;
-        } catch (altError) {
-          console.warn(`[WebSocket] Alternative health check failed:`, altError);
-          
-          // Last attempt: Try HEAD request to the server root
-          try {
-            const rootUrl = httpUrl.split('/').slice(0, 3).join('/');
-            console.log(`[WebSocket] Trying root URL: ${rootUrl}`);
-            
-            await fetch(rootUrl, { 
-              method: 'HEAD',
-              mode: 'no-cors',
-              cache: 'no-cache',
-              signal: AbortSignal.timeout(2000)
-            });
-            
-            console.log(`[WebSocket] Root URL check succeeded`);
-            return true;
-          } catch (rootError) {
-            console.warn(`[WebSocket] Root URL check failed:`, rootError);
-            return false;
-          }
+        } catch (error) {
+          console.warn(`[WebSocket] Health check failed for ${url}:`, error);
         }
+      }
+      
+      // If all health checks failed, try a HEAD request to the root URL
+      try {
+        const rootUrl = httpUrl.split('/').slice(0, 3).join('/');
+        console.log(`[WebSocket] Trying root URL: ${rootUrl}`);
+        
+        await fetch(rootUrl, { 
+          method: 'HEAD',
+          mode: 'no-cors',
+          cache: 'no-cache',
+          signal: AbortSignal.timeout(2000)
+        });
+        
+        console.log(`[WebSocket] Root URL check succeeded`);
+        return true;
+      } catch (rootError) {
+        console.warn(`[WebSocket] Root URL check failed:`, rootError);
+        return false;
       }
     } catch (error) {
       console.warn(`[WebSocket] Server health check failed:`, error);

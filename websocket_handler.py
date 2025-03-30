@@ -18,6 +18,11 @@ serial_processor.connected_clients = connected_clients
 
 async def websocket_handler(websocket, path):
     """Handle WebSocket connections for data streaming"""
+    # Make sure we have a proper WebSocket connection
+    if not isinstance(websocket, websockets.WebSocketServerProtocol):
+        logger.error(f"Invalid connection type: {type(websocket)}")
+        return
+        
     client_address = websocket.remote_address if hasattr(websocket, 'remote_address') else 'Unknown'
     client_ip = client_address[0] if isinstance(client_address, tuple) and len(client_address) > 0 else 'Unknown IP'
     logger.info(f"WebSocket client connected from {client_ip} to path: {path}")

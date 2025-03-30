@@ -247,7 +247,7 @@ const ConnectionControl: React.FC<ConnectionControlProps> = ({
                   onValueChange={(value) => {
                     setSelectedPortId(value);
                     // Fix: Call with no arguments
-                    setTimeout(checkPortUsage, 100);
+                    setTimeout(() => checkPortUsage(), 100);
                   }}
                   disabled={isConnected || loadingPorts}
                 >

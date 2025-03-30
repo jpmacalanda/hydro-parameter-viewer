@@ -80,48 +80,66 @@ async def main():
         except Exception as e:
             logger.error(f"Error enumerating network interfaces: {e}")
         
-        # Updated websockets server with explicitly configured ping_interval and close_timeout
-        # and better handling of client connections
-        server = await websockets.serve(
-            websocket_handler,
-            "0.0.0.0", 
-            settings.WS_PORT, 
-            ssl=ssl_context,
-            ping_interval=30,  # Send ping every 30 seconds to keep connection alive
-            ping_timeout=10,   # Wait 10 seconds for pong response
-            close_timeout=5,   # Wait 5 seconds for a clean connection close
-            max_size=2**20,    # 1MB max message size
-            max_queue=32,      # Limit message queue to prevent memory issues
-            process_request=http_handler,  # Add HTTP request handler for regular requests
-            logger=logger      # Use our configured logger
-        )
+        # Add a separate HTTP server
+        import aiohttp
+        from aiohttp import web
         
-        logger.info(f"Server running on port {settings.WS_PORT} {'with SSL' if ssl_context else 'without SSL'}")
-        
-        serial_task = asyncio.create_task(read_serial())
-        
-        # Create a simple HTTP server to improve compatibility with different clients
-        try:
-            from aiohttp import web
+        async def start_http_server():
+            app = web.Application()
             
             async def health_handler(request):
                 return web.Response(text="healthy\n")
             
-            app = web.Application()
-            app.add_routes([web.get('/health', health_handler)])
+            async def api_status_handler(request):
+                data = {
+                    "status": "running",
+                    "mockData": settings.MOCK_DATA,
+                    "time": time.time()
+                }
+                return web.json_response(data)
             
-            # Start HTTP server on a different port for better compatibility
+            app.add_routes([
+                web.get('/health', health_handler),
+                web.get('/api/status', api_status_handler)
+            ])
+            
             http_port = settings.WS_PORT + 1
-            logger.info(f"Starting additional HTTP server on port {http_port} for better compatibility")
+            logger.info(f"Starting dedicated HTTP server on port {http_port}")
+            
             runner = web.AppRunner(app)
             await runner.setup()
             site = web.TCPSite(runner, '0.0.0.0', http_port)
             await site.start()
             logger.info(f"HTTP server running at http://0.0.0.0:{http_port}")
-        except ImportError:
-            logger.info("aiohttp not available, skipping additional HTTP server")
+            return runner
+        
+        # Updated websockets server with properly configured HTTP handler
+        server = await websockets.serve(
+            websocket_handler,
+            "0.0.0.0", 
+            settings.WS_PORT, 
+            ssl=ssl_context,
+            ping_interval=30,
+            ping_timeout=10,
+            close_timeout=5,
+            max_size=2**20,
+            max_queue=32,
+            process_request=http_handler,
+            logger=logger
+        )
+        
+        logger.info(f"WebSocket server running on port {settings.WS_PORT} {'with SSL' if ssl_context else 'without SSL'}")
+        
+        # Start dedicated HTTP server
+        try:
+            http_runner = await start_http_server()
+            logger.info("Dedicated HTTP server started")
         except Exception as e:
             logger.error(f"Failed to start HTTP server: {e}")
+            logger.warning("Continuing with WebSocket server only")
+        
+        # Start serial reading task
+        serial_task = asyncio.create_task(read_serial())
         
         # Keep the server running
         await server.wait_closed()
@@ -142,6 +160,8 @@ async def main():
 
 if __name__ == "__main__":
     try:
+        # Import time module for the HTTP server
+        import time
         logger.info("Starting WebSocket server main process")
         asyncio.run(main())
     except KeyboardInterrupt:
