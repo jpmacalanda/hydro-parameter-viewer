@@ -23,6 +23,7 @@ app.get('/logs', (req, res) => {
     const logPath = path.join('/app/logs', 'serial_monitor.log');
     
     if (!fs.existsSync(logPath)) {
+      console.error('Log file not found at path:', logPath);
       return res.status(404).send('Log file not found');
     }
     
@@ -38,6 +39,7 @@ app.get('/logs', (req, res) => {
     // Set content type to plain text
     res.setHeader('Content-Type', 'text/plain');
     res.status(200).send(recentLogs);
+    console.log(`Served ${recentLogs.length} bytes of logs (${maxLines} lines)`);
   } catch (error) {
     console.error('Error reading log file:', error);
     res.status(500).send('Error reading log file');
@@ -50,6 +52,7 @@ app.get('/logs/raw', (req, res) => {
     const logPath = path.join('/app/logs', 'serial_monitor.log');
     
     if (!fs.existsSync(logPath)) {
+      console.error('Log file not found at path:', logPath);
       return res.status(404).send('Log file not found');
     }
     
@@ -59,6 +62,7 @@ app.get('/logs/raw', (req, res) => {
     // Stream the file to the response
     const fileStream = fs.createReadStream(logPath);
     fileStream.pipe(res);
+    console.log('Streaming entire log file');
   } catch (error) {
     console.error('Error streaming log file:', error);
     res.status(500).send('Error streaming log file');
@@ -68,4 +72,5 @@ app.get('/logs/raw', (req, res) => {
 // Start the server
 app.listen(port, '0.0.0.0', () => {
   console.log(`Serial logs server listening at http://0.0.0.0:${port}`);
+  console.log('Ready to serve real logs from /app/logs/serial_monitor.log');
 });

@@ -55,6 +55,7 @@ class SystemLogsService {
         ? '/logs' 
         : '/api/logs';
       
+      console.log(`Fetching logs from ${endpoint}`);
       const response = await fetch(endpoint);
       
       if (!response.ok) {
@@ -70,41 +71,10 @@ class SystemLogsService {
       }
     } catch (error) {
       console.error('Error fetching logs:', error);
-      
-      // If we can't get real logs, fall back to mock logs
-      const mockLogs = this.generateMockLogs();
-      this.notifyCallbacks(mockLogs);
-      
       toast.error('Failed to fetch system logs', {
         description: 'Could not retrieve container logs'
       });
     }
-  }
-
-  /**
-   * Generate mock logs based on container type
-   * Used as fallback when server logs are unavailable
-   */
-  private generateMockLogs(): string {
-    const now = new Date().toISOString();
-    let logs = '';
-    
-    if (this.containerType === 'websocket') {
-      logs = `${now} - INFO - WebSocket server running on port 8081 without SSL
-${now} - INFO - Available serial ports: ['/dev/ttyUSB0']
-${now} - INFO - Running in MOCK DATA mode - will generate simulated sensor readings
-${now} - INFO - No clients connected, skipping data send
-${now} - INFO - WebSocket client connected from 192.168.1.5 to path: /
-${now} - INFO - Sent data to 1 clients: {"ph":6.8,"temperature":24.2,"waterLevel":"medium","tds":678}`;
-    } else {
-      logs = `${now} - INFO - Starting NGINX container...
-${now} - INFO - Using existing certificates.
-${now} - INFO - NGINX running and serving content
-${now} - INFO - Received request for /index.html
-${now} - INFO - Served static content`;
-    }
-    
-    return logs;
   }
 
   /**
