@@ -36,7 +36,7 @@ services:
     environment:
       - SERIAL_PORT=/dev/ttyUSB0
       - BAUD_RATE=9600
-      - MOCK_DATA=false
+      - MOCK_DATA=false  # Will be auto-set to true if Arduino not found
       - MAX_RETRIES=5
       - RETRY_DELAY=3
     volumes:

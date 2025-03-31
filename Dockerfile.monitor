@@ -22,6 +22,14 @@ RUN chmod +x ./serial_monitor.py
 # Create a simple entrypoint script
 RUN echo '#!/bin/sh\n\
 echo "Starting Serial Monitor service..."\n\
+\n\
+# Check if we can access the Arduino device\n\
+if [ ! -c "$SERIAL_PORT" ] || [ ! -r "$SERIAL_PORT" ] || [ ! -w "$SERIAL_PORT" ]; then\n\
+  echo "WARNING: Arduino device at $SERIAL_PORT is not accessible"\n\
+  echo "Enabling mock data mode for presentation purposes"\n\
+  export MOCK_DATA=true\n\
+fi\n\
+\n\
 python serial_monitor.py\n\
 ' > /app/entrypoint.sh && chmod +x /app/entrypoint.sh
 
