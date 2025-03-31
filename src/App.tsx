@@ -7,12 +7,14 @@ import Dashboard from './components/Dashboard';
 import ConnectionControl from './components/ConnectionControl';
 import { NotificationsProvider } from '@/context/NotificationsContext';
 import serialService from '@/services/SerialService';
+import mockDataService from '@/services/MockDataService';
 import logParserService from '@/services/LogParserService';
 import { SerialData } from '@/services/types/serial.types';
 import { toast } from 'sonner';
 
 function App() {
   const [isConnected, setIsConnected] = useState(false);
+  const [useMockData, setUseMockData] = useState(false);
   const [sensorData, setSensorData] = useState<SerialData>({
     ph: 0,
     temperature: 0,
@@ -37,39 +39,85 @@ function App() {
     showSerialMonitor: true
   });
   
+  // Effect to handle data source changes based on mock toggle
+  useEffect(() => {
+    if (isConnected) {
+      if (useMockData) {
+        // Switch to mock data
+        console.log("[DOCKER-LOG][App] Switching to mock data");
+        logParserService.stopPolling(); // Stop real data parsing
+        
+        // Set up mock data service
+        mockDataService.clearCallbacks();
+        mockDataService.onData(handleSensorData);
+        mockDataService.startGeneratingData();
+        
+        toast.info("Using mock data", {
+          description: "Generating simulated sensor readings"
+        });
+      } else {
+        // Switch to real data
+        console.log("[DOCKER-LOG][App] Switching to real data");
+        mockDataService.stopGeneratingData(); // Stop mock data generation
+        
+        // Set up log parser for real data
+        logParserService.onData(handleSensorData);
+        logParserService.startPolling();
+        
+        toast.info("Using real data", {
+          description: "Reading from Arduino serial connection"
+        });
+      }
+    }
+    
+    // Cleanup function
+    return () => {
+      console.log("[DOCKER-LOG][App] Cleaning up data services");
+      mockDataService.stopGeneratingData();
+      logParserService.stopPolling();
+    };
+  }, [isConnected, useMockData]);
+  
   // Effect to start/stop log parsing based on connection
   useEffect(() => {
     console.log("[DOCKER-LOG][App] Connection state changed:", isConnected);
     
     if (isConnected) {
-      // Start log parsing
-      console.log("[DOCKER-LOG][App] Starting to read data from Serial Monitor logs");
-      toast.info("Reading data from Serial Monitor logs", {
-        description: "Parsing logs for sensor data"
-      });
+      console.log("[DOCKER-LOG][App] Is now connected, using mock data:", useMockData);
+      setDataReceived(false);
       
-      logParserService.onData(handleSensorData);
-      logParserService.startPolling();
-      
-      return () => {
-        console.log("[DOCKER-LOG][App] Cleaning up log parser (connected state cleanup)");
-        logParserService.stopPolling();
-      };
+      if (!useMockData) {
+        // Start real data parsing
+        console.log("[DOCKER-LOG][App] Starting to read data from Serial Monitor logs");
+        toast.info("Reading data from Serial Monitor logs", {
+          description: "Parsing logs for sensor data"
+        });
+        
+        logParserService.onData(handleSensorData);
+        logParserService.startPolling();
+      }
+    } else {
+      // If disconnected, stop both data sources
+      console.log("[DOCKER-LOG][App] Disconnected, stopping all data sources");
+      mockDataService.stopGeneratingData();
+      logParserService.stopPolling();
+      setDataReceived(false);
     }
     
     return () => {
       // Cleanup
-      console.log("[DOCKER-LOG][App] Cleaning up log parser (general cleanup)");
+      console.log("[DOCKER-LOG][App] Cleaning up data sources (general cleanup)");
+      mockDataService.stopGeneratingData();
       logParserService.stopPolling();
     };
   }, [isConnected]);
   
   // Log current state values
   useEffect(() => {
-    console.log("[DOCKER-LOG][App] Current state - connected:", isConnected, "dataReceived:", dataReceived);
+    console.log("[DOCKER-LOG][App] Current state - connected:", isConnected, "useMockData:", useMockData, "dataReceived:", dataReceived);
     console.log("[DOCKER-LOG][App] Current sensor data:", JSON.stringify(sensorData));
     console.log("[DOCKER-LOG][App] Data history length:", dataHistory.length);
-  }, [isConnected, dataReceived, sensorData, dataHistory]);
+  }, [isConnected, useMockData, dataReceived, sensorData, dataHistory]);
   
   const handleConnect = () => {
     console.log("[DOCKER-LOG][App] handleConnect called");
@@ -94,6 +142,11 @@ function App() {
     setDataReceived(true);
   };
 
+  const handleToggleMockData = (useMock: boolean) => {
+    console.log("[DOCKER-LOG][App] Toggle mock data:", useMock);
+    setUseMockData(useMock);
+  };
+
   return (
     <NotificationsProvider>
       <Router>
@@ -103,6 +156,8 @@ function App() {
             onDisconnect={handleDisconnect}
             isConnected={isConnected}
             dataReceived={dataReceived}
+            useMockData={useMockData}
+            onToggleMockData={handleToggleMockData}
           />
           
           {isConnected && (

@@ -5,19 +5,25 @@ import { toast } from "sonner";
 import { Zap } from "lucide-react";
 import ConnectionStatus from './connection/ConnectionStatus';
 import ConnectionButtons from './connection/ConnectionButtons';
+import { Switch } from "@/components/ui/switch";
+import { Label } from "@/components/ui/label";
 
 interface ConnectionControlProps {
   onConnect: () => void;
   onDisconnect: () => void;
   isConnected: boolean;
   dataReceived?: boolean;
+  useMockData: boolean;
+  onToggleMockData: (useMock: boolean) => void;
 }
 
 const ConnectionControl: React.FC<ConnectionControlProps> = ({ 
   onConnect, 
   onDisconnect,
   isConnected,
-  dataReceived = false
+  dataReceived = false,
+  useMockData,
+  onToggleMockData
 }) => {
   const [connecting, setConnecting] = useState(false);
   const [isError, setIsError] = useState(false);
@@ -57,8 +63,8 @@ const ConnectionControl: React.FC<ConnectionControlProps> = ({
   
   // Log props changes
   useEffect(() => {
-    console.log("[DOCKER-LOG][ConnectionControl] Props updated - isConnected:", isConnected, "dataReceived:", dataReceived);
-  }, [isConnected, dataReceived]);
+    console.log("[DOCKER-LOG][ConnectionControl] Props updated - isConnected:", isConnected, "dataReceived:", dataReceived, "useMockData:", useMockData);
+  }, [isConnected, dataReceived, useMockData]);
   
   const handleConnect = async () => {
     try {
@@ -111,6 +117,21 @@ const ConnectionControl: React.FC<ConnectionControlProps> = ({
       console.error("[DOCKER-LOG][ConnectionControl] Disconnection error:", error);
     }
   };
+
+  const handleToggleMockData = (checked: boolean) => {
+    console.log("[DOCKER-LOG][ConnectionControl] Toggle mock data:", checked);
+    onToggleMockData(checked);
+    
+    if (checked) {
+      toast.info("Mock data enabled", {
+        description: "Using simulated data instead of Arduino readings"
+      });
+    } else {
+      toast.info("Mock data disabled", {
+        description: "Using real data from Arduino"
+      });
+    }
+  };
   
   return (
     <div className="space-y-4 my-4">
@@ -129,8 +150,19 @@ const ConnectionControl: React.FC<ConnectionControlProps> = ({
               isConnected={isConnected}
               isError={isError}
               dataReceived={dataReceived}
-              usingMockData={false} // Never using mock data - only using real data
+              usingMockData={useMockData}
             />
+          </div>
+          
+          <div className="flex items-center space-x-2">
+            <Switch
+              id="mock-data-toggle"
+              checked={useMockData}
+              onCheckedChange={handleToggleMockData}
+            />
+            <Label htmlFor="mock-data-toggle" className="cursor-pointer">
+              Use Mock Data
+            </Label>
           </div>
         </div>
       </div>
