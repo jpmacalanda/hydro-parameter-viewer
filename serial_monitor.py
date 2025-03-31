@@ -13,7 +13,7 @@ import math
 # Get environment variables or use defaults
 SERIAL_PORT = os.environ.get('SERIAL_PORT', '/dev/ttyUSB0')
 BAUD_RATE = int(os.environ.get('BAUD_RATE', 9600))
-MOCK_DATA = os.environ.get('MOCK_DATA', 'false').lower() in ('true', 't', '1', 'yes', 'y')
+MOCK_DATA = os.environ.get('MOCK_DATA', 'true').lower() in ('true', 't', '1', 'yes', 'y')  # Default to true for mock data
 MAX_RETRIES = int(os.environ.get('MAX_RETRIES', 5))
 RETRY_DELAY = int(os.environ.get('RETRY_DELAY', 3))
 
