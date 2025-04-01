@@ -1,4 +1,3 @@
-
 import React, { useState, useEffect } from 'react';
 import { BrowserRouter as Router, Route, Routes } from 'react-router-dom';
 import { Toaster } from "sonner";
@@ -9,6 +8,7 @@ import { NotificationsProvider } from '@/context/NotificationsContext';
 import serialService from '@/services/SerialService';
 import mockDataService from '@/services/MockDataService';
 import logParserService from '@/services/LogParserService';
+import databaseService from '@/services/DatabaseService';
 import { SerialData } from '@/services/types/serial.types';
 import { toast } from 'sonner';
 
@@ -38,6 +38,49 @@ function App() {
     showSystemLogs: true,
     showSerialMonitor: true
   });
+  
+  // Load historical data from database on startup
+  useEffect(() => {
+    async function loadDatabaseData() {
+      try {
+        // Get the last 24 hours of data
+        const oneDayAgo = Date.now() - (24 * 60 * 60 * 1000);
+        const historicalData = await databaseService.getReadingsInRange(oneDayAgo, Date.now());
+        
+        if (historicalData.length > 0) {
+          console.log("[DOCKER-LOG][App] Loaded historical data from database:", historicalData.length, "records");
+          
+          // Sort by timestamp and convert to SerialData array
+          const sortedData = historicalData
+            .sort((a, b) => a.timestamp - b.timestamp)
+            .map(item => ({
+              ph: item.ph,
+              temperature: item.temperature,
+              waterLevel: item.waterLevel,
+              tds: item.tds
+            }));
+          
+          // Update data history with historical data
+          setDataHistory(sortedData);
+          
+          // Set current sensor data to the most recent reading
+          if (sortedData.length > 0) {
+            setSensorData(sortedData[sortedData.length - 1]);
+          }
+          
+          toast.info(`Loaded ${historicalData.length} historical readings`, {
+            description: "Retrieved from local database"
+          });
+        } else {
+          console.log("[DOCKER-LOG][App] No historical data found in database");
+        }
+      } catch (error) {
+        console.error("[DOCKER-LOG][App] Error loading data from database:", error);
+      }
+    }
+    
+    loadDatabaseData();
+  }, []);
   
   // Effect to handle data source changes based on mock toggle
   useEffect(() => {

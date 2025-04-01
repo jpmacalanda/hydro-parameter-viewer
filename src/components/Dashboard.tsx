@@ -3,6 +3,7 @@ import React, { useEffect, useState } from 'react';
 import MonitoringPanel from './dashboard/MonitoringPanel';
 import SystemInfoPanel from './dashboard/SystemInfoPanel';
 import serialService from '@/services/SerialService';
+import databaseService from '@/services/DatabaseService';
 import { SerialData } from '@/services/types/serial.types';
 import SensorGrid from './dashboard/SensorGrid';
 import DashboardHeader from './dashboard/DashboardHeader';
@@ -66,6 +67,12 @@ const DashboardContent: React.FC<DashboardProps> = ({
     if (sensorData && (sensorData.ph !== 0 || sensorData.temperature !== 0 || sensorData.tds !== 0)) {
       setLastUpdate(new Date());
       setLastDataReceived(new Date());
+      
+      // Store data in database - this will only happen once per minute due to internal checks
+      const wasStored = databaseService.storeSensorReading(sensorData);
+      if (wasStored) {
+        console.log("Dashboard: Stored sensor reading in database (1-minute interval)");
+      }
       
       // Update histories with new data point
       const currentHour = new Date().getHours();

@@ -1,16 +1,13 @@
 
 import React from 'react';
 import { Tabs, TabsContent, TabsList, TabsTrigger } from "@/components/ui/tabs";
-import StatisticsView from '../StatisticsView';
-import ThresholdSettings from '../ThresholdSettings';
-import SystemLogs from '../SystemLogs';
-import SerialMonitor from '../SerialMonitor';
-import FeatureSettings from '../FeatureSettings';
-import ArchiveSettings from '../ArchiveSettings';
-import { Badge } from "@/components/ui/badge";
-import NotificationsPanel from '../NotificationsPanel';
-import { useNotifications } from '@/context/NotificationsContext';
+import ThresholdSettings from '@/components/ThresholdSettings';
+import StatisticsView from '@/components/StatisticsView';
+import SystemLogs from '@/components/SystemLogs';
+import SerialMonitor from '@/components/SerialMonitor';
+import FeatureSettings from '@/components/FeatureSettings';
 import { SerialData } from '@/services/types/serial.types';
+import DatabaseManagement from '../DatabaseManagement';
 
 interface DashboardTabsProps {
   features: {
@@ -46,85 +43,43 @@ const DashboardTabs: React.FC<DashboardTabsProps> = ({
   setThresholds,
   setFeatures
 }) => {
-  const { notifications, unreadCount, handleMarkAsRead, handleMarkAllAsRead, handleClearAll } = useNotifications();
-
   return (
-    <div className="mt-6">
-      <Tabs defaultValue="statistics">
-        <TabsList className="grid w-full grid-cols-6">
-          {features.showStatistics && <TabsTrigger value="statistics">Statistics</TabsTrigger>}
-          {features.showThresholds && <TabsTrigger value="thresholds">Thresholds</TabsTrigger>}
-          {(features.showSystemLogs || features.showSerialMonitor) && 
-            <TabsTrigger value="diagnostics">Diagnostics</TabsTrigger>
-          }
-          <TabsTrigger value="notifications">
-            Notifications
-            {unreadCount > 0 && (
-              <Badge 
-                className="ml-2 flex items-center justify-center w-5 h-5 p-0 text-xs bg-red-500 text-white rounded-full" 
-                variant="destructive"
-              >
-                {unreadCount}
-              </Badge>
-            )}
-          </TabsTrigger>
-          <TabsTrigger value="settings">Settings</TabsTrigger>
-          <TabsTrigger value="archive">Archive</TabsTrigger>
-        </TabsList>
-        
+    <Tabs defaultValue="statistics" className="mt-8 bg-white rounded-lg border shadow p-4">
+      <TabsList className="grid grid-cols-6 w-full">
+        <TabsTrigger value="statistics">Statistics</TabsTrigger>
+        <TabsTrigger value="thresholds">Thresholds</TabsTrigger>
+        <TabsTrigger value="logs">System Logs</TabsTrigger>
+        <TabsTrigger value="serialMonitor">Serial Monitor</TabsTrigger>
+        <TabsTrigger value="database">Database</TabsTrigger>
+        <TabsTrigger value="settings">Settings</TabsTrigger>
+      </TabsList>
+      <TabsContent value="statistics" className="pt-4">
         {features.showStatistics && (
-          <TabsContent value="statistics" className="mt-6">
-            <StatisticsView sensorData={sensorData} />
-          </TabsContent>
+          <StatisticsView sensorData={sensorData} dataHistory={dataHistory} />
         )}
-        
+      </TabsContent>
+      <TabsContent value="thresholds" className="pt-4">
         {features.showThresholds && (
-          <TabsContent value="thresholds" className="mt-6">
-            <ThresholdSettings thresholds={thresholds} setThresholds={setThresholds} />
-          </TabsContent>
+          <ThresholdSettings thresholds={thresholds} setThresholds={setThresholds} />
         )}
-        
-        {(features.showSystemLogs || features.showSerialMonitor) && (
-          <TabsContent value="diagnostics" className="mt-6">
-            <Tabs defaultValue={features.showSystemLogs ? "logs" : "serial"}>
-              <TabsList>
-                {features.showSystemLogs && <TabsTrigger value="logs">System Logs</TabsTrigger>}
-                {features.showSerialMonitor && <TabsTrigger value="serial">Serial Monitor</TabsTrigger>}
-              </TabsList>
-              
-              {features.showSystemLogs && (
-                <TabsContent value="logs" className="mt-4">
-                  <SystemLogs />
-                </TabsContent>
-              )}
-              
-              {features.showSerialMonitor && (
-                <TabsContent value="serial" className="mt-4">
-                  <SerialMonitor />
-                </TabsContent>
-              )}
-            </Tabs>
-          </TabsContent>
+      </TabsContent>
+      <TabsContent value="logs" className="pt-4">
+        {features.showSystemLogs && (
+          <SystemLogs />
         )}
-        
-        <TabsContent value="notifications" className="mt-6">
-          <NotificationsPanel
-            notifications={notifications}
-            onMarkAsRead={handleMarkAsRead}
-            onMarkAllAsRead={handleMarkAllAsRead}
-            onClearAll={handleClearAll}
-          />
-        </TabsContent>
-        
-        <TabsContent value="settings" className="mt-6">
-          <FeatureSettings features={features} setFeatures={setFeatures} />
-        </TabsContent>
-        
-        <TabsContent value="archive" className="mt-6">
-          <ArchiveSettings sensorData={sensorData} dataHistory={dataHistory} />
-        </TabsContent>
-      </Tabs>
-    </div>
+      </TabsContent>
+      <TabsContent value="serialMonitor" className="pt-4">
+        {features.showSerialMonitor && (
+          <SerialMonitor />
+        )}
+      </TabsContent>
+      <TabsContent value="database" className="pt-4">
+        <DatabaseManagement />
+      </TabsContent>
+      <TabsContent value="settings" className="pt-4">
+        <FeatureSettings features={features} setFeatures={setFeatures} />
+      </TabsContent>
+    </Tabs>
   );
 };
 
