@@ -7,7 +7,7 @@ import { Label } from "@/components/ui/label";
 import { Archive, FileText } from "lucide-react";
 import { toast } from "sonner";
 import { SerialData } from "@/services/types/serial.types";
-import { convertToCSV, downloadCSV, getFormattedDate } from "@/utils/csvUtils";
+import { downloadCSV, getFormattedDate } from "@/utils/csvUtils";
 
 interface ArchiveSettingsProps {
   sensorData: SerialData;
@@ -19,9 +19,9 @@ const ArchiveSettings: React.FC<ArchiveSettingsProps> = ({ sensorData, dataHisto
   
   // Handle download of current data point
   const handleDownloadCurrent = () => {
-    const csvContent = convertToCSV([sensorData], includeTimestamp);
+    // Pass the sensorData as an array directly to downloadCSV
     const filename = `hydroponics-current-${getFormattedDate()}.csv`;
-    downloadCSV(csvContent, filename);
+    downloadCSV([sensorData], filename);
     toast.success("Current data downloaded", {
       description: `Saved as ${filename}`
     });
@@ -31,9 +31,8 @@ const ArchiveSettings: React.FC<ArchiveSettingsProps> = ({ sensorData, dataHisto
   const handleDownloadHistory = () => {
     // If no history, use current data as fallback
     const dataToExport = dataHistory.length > 0 ? dataHistory : [sensorData];
-    const csvContent = convertToCSV(dataToExport, includeTimestamp);
     const filename = `hydroponics-history-${getFormattedDate()}.csv`;
-    downloadCSV(csvContent, filename);
+    downloadCSV(dataToExport, filename);
     toast.success("Historical data downloaded", {
       description: `Saved as ${filename} with ${dataToExport.length} records`
     });
