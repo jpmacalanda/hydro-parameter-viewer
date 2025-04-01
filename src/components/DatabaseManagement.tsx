@@ -13,12 +13,13 @@ import {
 } from "@/components/ui/table";
 import databaseService from '@/services/DatabaseService';
 import { format } from 'date-fns';
-import { Download, Trash } from 'lucide-react';
+import { Download, Trash, BarChart } from 'lucide-react';
 import { downloadCSV } from '@/utils/csvUtils';
 
 const DatabaseManagement = () => {
   const [storedReadings, setStoredReadings] = useState<Array<any>>([]);
   const [isLoading, setIsLoading] = useState(true);
+  const [databaseStats, setDatabaseStats] = useState({ recordCount: 0, estimatedSize: '0 MB' });
   
   const loadDatabaseData = async () => {
     setIsLoading(true);
@@ -27,6 +28,10 @@ const DatabaseManagement = () => {
       // Sort by timestamp (newest first)
       const sortedReadings = allReadings.sort((a, b) => b.timestamp - a.timestamp);
       setStoredReadings(sortedReadings);
+      
+      // Get database stats
+      const stats = await databaseService.getDatabaseStats();
+      setDatabaseStats(stats);
     } catch (error) {
       console.error("Error loading database data:", error);
       toast.error("Failed to load stored readings");
@@ -44,6 +49,7 @@ const DatabaseManagement = () => {
       try {
         await databaseService.clearAllReadings();
         setStoredReadings([]);
+        setDatabaseStats({ recordCount: 0, estimatedSize: '0 MB' });
         toast.success("All stored readings cleared");
       } catch (error) {
         console.error("Error clearing database:", error);
@@ -58,19 +64,25 @@ const DatabaseManagement = () => {
       return;
     }
     
-    // Convert data to CSV format
-    const csvData = storedReadings.map(reading => ({
-      timestamp: format(new Date(reading.timestamp), 'yyyy-MM-dd HH:mm:ss'),
-      ph: reading.ph,
-      temperature: reading.temperature,
-      tds: reading.tds,
-      waterLevel: reading.waterLevel
-    }));
-    
-    // Use the proper method to download CSV
-    const filename = `hydroponics-data-${new Date().toISOString().slice(0, 10)}.csv`;
-    downloadCSV(csvData, filename);
-    toast.success("Data exported successfully");
+    try {
+      // Convert data to CSV format
+      const csvData = storedReadings.map(reading => ({
+        timestamp: format(new Date(reading.timestamp), 'yyyy-MM-dd HH:mm:ss'),
+        ph: reading.ph.toFixed(2),
+        temperature: reading.temperature.toFixed(2),
+        tds: reading.tds,
+        waterLevel: reading.waterLevel
+      }));
+      
+      // Use the utility function correctly - it expects an array of objects and a filename
+      const filename = `hydroponics-data-${new Date().toISOString().slice(0, 10)}.csv`;
+      downloadCSV(csvData, filename);
+      
+      toast.success("Data exported successfully");
+    } catch (error) {
+      console.error("Error exporting CSV:", error);
+      toast.error("Failed to export data");
+    }
   };
   
   return (
@@ -100,10 +112,21 @@ const DatabaseManagement = () => {
       </div>
       
       <div className="border rounded-lg p-4 bg-white">
-        <h3 className="text-lg font-medium mb-2">Stored Readings (Every Minute)</h3>
+        <div className="flex justify-between items-center mb-4">
+          <h3 className="text-lg font-medium">Stored Readings (Every Minute)</h3>
+          <div className="bg-blue-100 p-2 rounded-md flex items-center text-sm space-x-2">
+            <BarChart className="h-4 w-4 text-blue-700" />
+            <div>
+              <span className="font-medium">Database size:</span> {databaseStats.estimatedSize}
+              <span className="mx-2">|</span>
+              <span className="font-medium">Records:</span> {databaseStats.recordCount}
+            </div>
+          </div>
+        </div>
+        
         <p className="text-sm text-gray-500 mb-4">
           The system stores one reading per minute in the local database.
-          Total stored readings: {storedReadings.length}
+          When storage approaches 5GB, oldest records will be automatically deleted.
         </p>
         
         {isLoading ? (
