@@ -27,9 +27,25 @@ const ConnectionControl: React.FC<ConnectionControlProps> = ({
 }) => {
   const [connecting, setConnecting] = useState(false);
   const [isError, setIsError] = useState(false);
+  const [isMobile, setIsMobile] = useState(false);
   
   useEffect(() => {
     console.log("[DOCKER-LOG][ConnectionControl] Component mounted");
+    
+    // Check if running in Capacitor (mobile)
+    const checkCapacitor = () => {
+      const isCap = typeof (window as any).Capacitor !== 'undefined';
+      console.log("[DOCKER-LOG][ConnectionControl] Running in Capacitor:", isCap);
+      setIsMobile(isCap);
+      
+      // If on mobile, default to mock data
+      if (isCap && !useMockData) {
+        console.log("[DOCKER-LOG][ConnectionControl] Mobile detected, enabling mock data");
+        onToggleMockData(true);
+      }
+    };
+    
+    checkCapacitor();
     
     const handleArduinoError = (event: Event) => {
       const customEvent = event as CustomEvent;
@@ -59,7 +75,7 @@ const ConnectionControl: React.FC<ConnectionControlProps> = ({
       document.removeEventListener('connection-success', handleConnectionSuccess);
       console.log("[DOCKER-LOG][ConnectionControl] Component unmounted, removed event listeners");
     };
-  }, []);
+  }, [onToggleMockData, useMockData]);
   
   // Log props changes
   useEffect(() => {
@@ -73,6 +89,18 @@ const ConnectionControl: React.FC<ConnectionControlProps> = ({
       setIsError(false);
       
       console.log("[DOCKER-LOG][ConnectionControl] Attempting connection...");
+      
+      // If on mobile, just use mock data
+      if (isMobile) {
+        console.log("[DOCKER-LOG][ConnectionControl] Mobile detected, using mock data only");
+        onToggleMockData(true);
+        onConnect();
+        toast.success("Connected successfully", {
+          description: "Using simulated data on mobile device"
+        });
+        setConnecting(false);
+        return;
+      }
       
       const success = await serialService.connect();
       
@@ -127,9 +155,16 @@ const ConnectionControl: React.FC<ConnectionControlProps> = ({
         description: "Using simulated data instead of Arduino readings"
       });
     } else {
-      toast.info("Mock data disabled", {
-        description: "Using real data from Arduino"
-      });
+      if (isMobile) {
+        toast.info("Mock data required on mobile", {
+          description: "Mobile devices can only use simulated data"
+        });
+        onToggleMockData(true);
+      } else {
+        toast.info("Mock data disabled", {
+          description: "Using real data from Arduino"
+        });
+      }
     }
   };
   
@@ -143,7 +178,7 @@ const ConnectionControl: React.FC<ConnectionControlProps> = ({
               connecting={connecting}
               handleConnect={handleConnect}
               handleDisconnect={handleDisconnect}
-              canConnect={true}
+              canConnect={!isMobile || !isConnected} // Disable connect button on mobile if already connected
             />
             
             <ConnectionStatus 
@@ -159,9 +194,10 @@ const ConnectionControl: React.FC<ConnectionControlProps> = ({
               id="mock-data-toggle"
               checked={useMockData}
               onCheckedChange={handleToggleMockData}
+              disabled={isMobile} // Disable toggle on mobile since mock data is required
             />
             <Label htmlFor="mock-data-toggle" className="cursor-pointer">
-              Use Mock Data
+              {isMobile ? "Using Mock Data (Required on Mobile)" : "Use Mock Data"}
             </Label>
           </div>
         </div>
