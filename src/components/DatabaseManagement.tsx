@@ -67,8 +67,9 @@ const DatabaseManagement = () => {
       waterLevel: reading.waterLevel
     }));
     
-    // Download CSV
-    downloadCSV(csvData, `hydroponics-data-${new Date().toISOString().slice(0, 10)}.csv`);
+    // Use the proper method to download CSV
+    const filename = `hydroponics-data-${new Date().toISOString().slice(0, 10)}.csv`;
+    downloadCSV(csvData, filename);
     toast.success("Data exported successfully");
   };
   

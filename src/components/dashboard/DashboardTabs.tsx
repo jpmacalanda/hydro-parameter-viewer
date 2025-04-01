@@ -55,7 +55,7 @@ const DashboardTabs: React.FC<DashboardTabsProps> = ({
       </TabsList>
       <TabsContent value="statistics" className="pt-4">
         {features.showStatistics && (
-          <StatisticsView sensorData={sensorData} dataHistory={dataHistory} />
+          <StatisticsView sensorData={sensorData} />
         )}
       </TabsContent>
       <TabsContent value="thresholds" className="pt-4">
