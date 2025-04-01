@@ -2,21 +2,26 @@
 import { SerialData } from "@/services/types/serial.types";
 
 /**
- * Converts sensor data array to CSV format
+ * Converts an array of objects to CSV format
  */
-export const convertToCSV = (dataArray: SerialData[], includeTimestamp: boolean = true): string => {
-  // Define CSV headers
-  const headers = includeTimestamp 
-    ? ['timestamp', 'ph', 'temperature', 'waterLevel', 'tds']
-    : ['ph', 'temperature', 'waterLevel', 'tds'];
+export const convertToCSV = (dataArray: any[], includeHeaders: boolean = true): string => {
+  if (dataArray.length === 0) return '';
   
-  // Create CSV header row
-  let csvContent = headers.join(',') + '\n';
+  // Get all headers from the first object
+  const headers = Object.keys(dataArray[0]);
+  
+  // Create CSV content
+  let csvContent = includeHeaders ? headers.join(',') + '\n' : '';
   
   // Add data rows
-  dataArray.forEach(data => {
-    const timestamp = includeTimestamp ? new Date().toISOString() + ',' : '';
-    const row = `${timestamp}${data.ph},${data.temperature},${data.waterLevel},${data.tds}`;
+  dataArray.forEach(item => {
+    const row = headers.map(header => {
+      // Handle special cases like null, undefined, or objects
+      const value = item[header];
+      if (value === null || value === undefined) return '';
+      if (typeof value === 'object') return JSON.stringify(value);
+      return String(value);
+    }).join(',');
     csvContent += row + '\n';
   });
   
@@ -25,8 +30,14 @@ export const convertToCSV = (dataArray: SerialData[], includeTimestamp: boolean 
 
 /**
  * Downloads data as a CSV file
+ * @param data An array of objects to be converted to CSV
+ * @param filename The name of the CSV file to download
  */
-export const downloadCSV = (csvContent: string, filename: string = 'hydroponics-data.csv'): void => {
+export const downloadCSV = (data: any[], filename: string = 'hydroponics-data.csv'): void => {
+  // Convert data array to CSV string
+  const csvContent = convertToCSV(data);
+  
+  // Create blob and download
   const blob = new Blob([csvContent], { type: 'text/csv;charset=utf-8;' });
   const url = URL.createObjectURL(blob);
   const link = document.createElement('a');

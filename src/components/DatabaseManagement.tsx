@@ -65,7 +65,7 @@ const DatabaseManagement = () => {
     }
     
     try {
-      // Convert data to CSV format
+      // Convert data to CSV format - prepare the data array with formatted values
       const csvData = storedReadings.map(reading => ({
         timestamp: format(new Date(reading.timestamp), 'yyyy-MM-dd HH:mm:ss'),
         ph: reading.ph.toFixed(2),
@@ -74,7 +74,7 @@ const DatabaseManagement = () => {
         waterLevel: reading.waterLevel
       }));
       
-      // Use the utility function correctly - it expects an array of objects and a filename
+      // Use the updated utility function - it now accepts an array
       const filename = `hydroponics-data-${new Date().toISOString().slice(0, 10)}.csv`;
       downloadCSV(csvData, filename);
       
